@@ -36,7 +36,8 @@ func emit_event(type: String, data: Dictionary = {}) -> Dictionary:
 func events(filter_type: String = "") -> Array:
 	if filter_type == "":
 		return _events.duplicate(true)
-	return _events.filter(func(e: Dictionary) -> bool: return e["type"] == filter_type)
+	var matches: Array = _events.filter(func(e: Dictionary) -> bool: return e["type"] == filter_type)
+	return matches.map(func(e: Dictionary) -> Dictionary: return e.duplicate(true))
 
 func latest(n: int = 10) -> Array:
 	return _events.slice(maxi(0, _events.size() - n))
