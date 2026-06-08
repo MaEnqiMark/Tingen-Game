@@ -44,6 +44,7 @@ func _init() -> void:
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_occult_divination()
+	_test_occult_other_tools()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -586,3 +587,33 @@ func _test_occult_divination() -> void:
 	# No-name guarantee: the lead never contains the true resolved site id.
 	var true_site: String = String(WM.slots.get("primary_ritual_site", ""))
 	_ok(true_site == "" or not String(res["lead"]).contains(true_site), "lead never names the true site")
+
+func _test_occult_other_tools() -> void:
+	print("[occult other tools]")
+	var OTM: Object = root.get_node("/root/OccultToolManager")
+	var INV: Object = root.get_node("/root/Inventory")
+	var WS: Object = root.get_node("/root/WorldState")
+	OTM.rebuild()
+	INV.clear()
+	WS.set_pressure(&"fatigue", 0.0)
+	WS.set_pressure(&"corruption", 0.0)
+	# Residue sight: owns lens, no ingredient cost.
+	INV.add("spirit_lens")
+	_ok(OTM.can_use("residue_sight"), "residue sight usable with just the lens")
+	var r1: Dictionary = OTM.use("residue_sight")
+	_ok(r1.get("ok", false), "residue sight returns ok")
+	# Dream fragments: produces dream_residue.
+	INV.add("dream_draught")
+	INV.add("dream_herb", 1)
+	var r2: Dictionary = OTM.use("dream_fragments")
+	_ok(r2.get("ok", false), "dream fragments returns ok")
+	_ok(INV.count_of("dream_residue") == 1, "dream fragments produces dream_residue")
+	_ok(INV.count_of("dream_herb") == 0, "dream fragments consumes dream_herb")
+	# Gray fog: hard-capped at 3 uses per run.
+	INV.add("gray_fog_focus")
+	INV.add("consecrated_chalk", 9)
+	_ok(OTM.use("gray_fog").get("ok", false), "gray fog use 1 ok")
+	OTM.use("gray_fog")
+	OTM.use("gray_fog")
+	_ok(OTM.can_use("gray_fog") == false, "gray fog refused after 3 uses")
+	_ok(OTM.use("gray_fog").get("ok", false) == false, "gray fog 4th use blocked")
