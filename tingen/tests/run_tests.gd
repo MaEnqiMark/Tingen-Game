@@ -24,6 +24,7 @@ func _init() -> void:
 	_test_event_scoring()
 	_test_save_load_roundtrip()
 	_test_clock_beats()
+	_test_event_bus()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -137,3 +138,15 @@ func _test_clock_beats() -> void:
 	Clk.advance_minutes(30)
 	_ok(Clk.beat_index == 3, "45 minutes total -> 3 beats")
 	Clk.beat_ticked.disconnect(cb)
+
+func _test_event_bus() -> void:
+	print("[event bus]")
+	var EB: Object = root.get_node("/root/EventBus")
+	EB.clear()
+	var ev: Dictionary = EB.emit_event("test_action", {"actor": "voss"})
+	_ok(ev["type"] == "test_action", "event records its type")
+	_ok(int(ev["seq"]) == 1, "first event seq is 1")
+	_ok(EB.events().size() == 1, "one event logged")
+	EB.emit_event("other", {})
+	_ok(EB.events("test_action").size() == 1, "filter by type returns only matches")
+	_ok(EB.latest(1).size() == 1, "latest(1) returns one event")
