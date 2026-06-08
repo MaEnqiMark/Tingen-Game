@@ -37,6 +37,13 @@ static func is_verb(verb: String) -> bool:
 	_ensure_loaded()
 	return _verbs.has(verb)
 
+## Required arg names for a verb (empty Array if unknown or argless). Exposed so the
+## cross-language parity test can compare the engine's *loaded* schema against the
+## sidecar's, and so a future prompt-builder can describe each verb's arguments.
+static func required_args(verb: String) -> Array:
+	_ensure_loaded()
+	return (_verbs.get(verb, []) as Array).duplicate()
+
 ## Returns { "ok": bool, "reason": String }. `reason` is "" when ok.
 static func validate(action: Dictionary) -> Dictionary:
 	_ensure_loaded()

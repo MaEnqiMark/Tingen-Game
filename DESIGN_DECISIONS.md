@@ -398,3 +398,21 @@ verbs/combat). All landed with a green suite (189 passed, 0 failed) and two-stag
   re-emit** the restored events on load — listeners (overseer, runtime) must not re-fire on a
   resumed game. *Alts (rejected):* replay events on load (double-counts `player_involved`, re-runs
   side effects, corrupts a resumed session).
+- **GDScript↔Python schema parity — how tested? (Task #26)** → **A harness test runs the *real*
+  sidecar code** — it imports `sidecar.py` and calls its actual `load_schema()` /
+  `validate_action()` over a 16-action fixture battery (via `/usr/bin/env python3`), asserting
+  identical verb sets, identical required-args per verb, and identical `(ok, reason)` verdicts
+  against the engine's `ActionSchema`. Both sides read one shared `action_schema.json`, so the verb
+  *data* can't drift; the real risk is the two independently hand-written *validators* diverging,
+  which this locks down (verified by injecting a divergence and watching the test fail). *Alts
+  (rejected):* reimplement the sidecar's validation in GDScript and compare (the copy is itself a
+  new drift source); compare only the loaded JSON file (misses validator-behavior drift); defer the
+  test until live-LLM wiring (drift would land silently first).
+- **Parity test when no Python interpreter is present?** → **Skip loudly** — a new harness skip
+  counter prints `=== N passed, M failed, K skipped ===` and a visible `SKIP` line, never failing
+  the (otherwise pure-Godot) suite. *Alts (rejected):* hard-fail (breaks a Godot-only CI with no
+  Python); silently pass (an unrun check masquerades as a passing one).
+- **Fixtures handed to the Python helper?** → **A temp file path**, because a quote-laden JSON
+  string does not survive an `OS.execute` argv intact (the double-quotes were stripped, mangling the
+  JSON on the Python side). *Alts (rejected):* inline JSON arg (proved fragile in practice);
+  stdin/pipe (Godot's `OS.execute` cannot feed stdin).

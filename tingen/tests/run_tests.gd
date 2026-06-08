@@ -10,6 +10,7 @@ extends SceneTree
 
 var _passed: int = 0
 var _failed: int = 0
+var _skipped: int = 0
 
 func _init() -> void:
 	# Let autoloads finish their _ready before asserting against them.
@@ -49,8 +50,9 @@ func _init() -> void:
 	_test_player_actions()
 	_test_combat_scaled_by_impede()
 	_test_player_state_save_load()
+	_test_schema_parity_with_sidecar()
 
-	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
+	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
 
 func _ok(cond: bool, label: String) -> void:
@@ -60,6 +62,13 @@ func _ok(cond: bool, label: String) -> void:
 	else:
 		_failed += 1
 		printerr("  FAIL  %s" % label)
+
+## Record a test that could not run in this environment (e.g. an external tool is
+## absent). Visible in the output and the summary so an unrun check is never mistaken
+## for a passing one, but does NOT fail the suite.
+func _skip(label: String) -> void:
+	_skipped += 1
+	print("  SKIP  %s" % label)
 
 func _test_clock_phases() -> void:
 	print("[clock]")
@@ -704,3 +713,113 @@ func _test_player_state_save_load() -> void:
 	_ok(SP.ingredients.get("candle", 0) == 2, "cult ingredient stock restored")
 	_ok(OV.player_involved == true, "overseer player-involvement restored")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+
+## Guards the GDScript<->Python boundary: the engine's ActionSchema and the sidecar's
+## contract read the same data/action_schema.json, but the two *validators* are written
+## independently and could silently diverge. This runs the REAL sidecar code over a
+## fixture battery and asserts identical verb sets, identical required-args, and identical
+## (ok, reason) verdicts. Skips (does not fail) when no Python interpreter is available.
+func _test_schema_parity_with_sidecar() -> void:
+	print("[schema parity: gdscript <-> python sidecar]")
+
+	# OS.execute won't search PATH for a bare command, so go through `/usr/bin/env`.
+	# If no interpreter is available (e.g. a Godot-only CI), SKIP loudly.
+	var py_prefix := _python_argv_prefix()
+	if py_prefix.is_empty():
+		_skip("no python3 — gdscript<->python schema parity not verified")
+		return
+
+	# One valid action per verb, then every rejection path the two independently
+	# hand-written validators must agree on.
+	var fixtures: Array = [
+		{"actor": "voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}},
+		{"actor": "voss", "verb": "talk_to", "args": {"agent": "orin", "topic": "ritual"}},
+		{"actor": "voss", "verb": "gather_item", "args": {"item_id": "candle"}},
+		{"actor": "voss", "verb": "perform_ritual_step", "args": {"step": "anoint"}},
+		{"actor": "voss", "verb": "hide", "args": {}},
+		{"actor": "voss", "verb": "flee", "args": {"from": "pell"}},
+		{"actor": "voss", "verb": "attack", "args": {"target": "pell"}},
+		{"actor": "voss", "verb": "recruit", "args": {"agent": "orin"}},
+		{"actor": "voss", "verb": "report", "args": {"to": "nighthawks", "info": "cult"}},
+		{"actor": "voss", "verb": "idle", "args": {}},
+		{"actor": "voss", "verb": "teleport", "args": {}},               # unknown verb
+		{"verb": "idle", "args": {}},                                    # missing actor
+		{"actor": "", "verb": "idle", "args": {}},                       # empty actor
+		{"actor": "voss", "verb": "talk_to", "args": {"agent": "orin"}}, # missing required arg
+		{"actor": "voss", "verb": "move_to", "args": "nope"},            # args not an object
+		{"actor": "voss", "verb": "move_to"},                            # args omitted
+	]
+
+	# Write fixtures to a temp file and pass its PATH (not inline JSON — a quote-laden
+	# JSON string does not survive an argv intact), then run
+	# `/usr/bin/env python3 <helper> <fixtures-file>`.
+	var fixtures_path := "user://_parity_fixtures.json"
+	var ff := FileAccess.open(fixtures_path, FileAccess.WRITE)
+	ff.store_string(JSON.stringify(fixtures))
+	ff.close()
+	var fixtures_os := ProjectSettings.globalize_path(fixtures_path)
+	var helper := ProjectSettings.globalize_path("res://").path_join("../agent-sidecar/schema_parity_check.py")
+	var argv: Array = py_prefix.duplicate()
+	argv.append(helper)
+	argv.append(fixtures_os)
+	var out: Array = []
+	var code := OS.execute("/usr/bin/env", argv, out, true)
+	DirAccess.remove_absolute(fixtures_os)
+	var joined := "\n".join(out).strip_edges()
+	_ok(code == 0, "python parity helper exited 0")
+	if code != 0:
+		printerr("    helper output: %s" % joined)
+		return
+
+	var parsed: Variant = JSON.parse_string(joined)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_ok(false, "python helper emitted parseable JSON (got: %s)" % joined)
+		return
+	var py_schema: Dictionary = parsed.get("schema", {})
+	var py_verdicts: Array = parsed.get("verdicts", [])
+
+	# 1) Verb-set parity: the engine loaded exactly the verbs the sidecar loaded.
+	var gd_verbs: Array = ActionSchema.verbs()
+	gd_verbs.sort()
+	var py_verbs: Array = py_schema.keys()
+	py_verbs.sort()
+	_ok(gd_verbs == py_verbs, "verb sets identical: %s" % str(gd_verbs))
+
+	# 2) Required-args parity per verb (engine's loaded map vs the sidecar's).
+	var args_parity := true
+	for v in gd_verbs:
+		var gd_args: Array = ActionSchema.required_args(v)
+		var py_args: Array = (py_schema.get(v, []) as Array).duplicate()
+		gd_args.sort(); py_args.sort()
+		if gd_args != py_args:
+			args_parity = false
+			printerr("    arg mismatch for '%s': gd=%s py=%s" % [v, str(gd_args), str(py_args)])
+	_ok(args_parity, "required args identical for every verb")
+
+	# 3) Verdict parity: both validators agree (ok AND reason) on each fixture.
+	_ok(py_verdicts.size() == fixtures.size(), "one python verdict per fixture")
+	var verdict_parity := true
+	for i in fixtures.size():
+		var gd: Dictionary = ActionSchema.validate(fixtures[i])
+		var py: Array = py_verdicts[i] if i < py_verdicts.size() else [null, ""]
+		var gd_ok: bool = gd["ok"]
+		var py_ok: bool = bool(py[0])
+		var gd_reason: String = gd["reason"]
+		var py_reason: String = String(py[1]) if py.size() > 1 else ""
+		if gd_ok != py_ok or gd_reason != py_reason:
+			verdict_parity = false
+			printerr("    verdict mismatch on fixture %d (%s): gd=[%s,'%s'] py=[%s,'%s']" % [
+				i, str(fixtures[i].get("verb", "")), str(gd_ok), gd_reason, str(py_ok), py_reason,
+			])
+	_ok(verdict_parity, "validator verdicts (ok+reason) match across %d fixtures" % fixtures.size())
+
+## Returns the argv prefix to run Python via `/usr/bin/env` (so PATH is searched), or []
+## if no interpreter is available. Tries python3 then python.
+func _python_argv_prefix() -> Array:
+	if not FileAccess.file_exists("/usr/bin/env"):
+		return []
+	for candidate in ["python3", "python"]:
+		var probe: Array = []
+		if OS.execute("/usr/bin/env", [candidate, "--version"], probe, true) == 0:
+			return [candidate]
+	return []
