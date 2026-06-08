@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_agent_registry()
 	_test_cult_cell_seeded()
 	_test_substrate_save_load()
+	_test_item_db()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -209,3 +210,16 @@ func _test_substrate_save_load() -> void:
 	_ok(EB.events("seed_event").size() == 1, "event log restored after load")
 	_ok(AG.get_agent("clerk_voss").position == Vector2(123, 456), "agent position restored")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+
+func _test_item_db() -> void:
+	print("[item db]")
+	var DB: Object = root.get_node("/root/ItemDB")
+	_ok(DB.has_def("rye_bread"), "items.json loaded rye_bread")
+	var d: ItemDef = DB.get_def("rye_bread")
+	_ok(d != null, "get_def returns an ItemDef")
+	_ok(d.category == "sustenance", "rye_bread is sustenance")
+	_ok(d.stackable == true, "rye_bread is stackable")
+	_ok(d.max_stack == 5, "rye_bread max_stack is 5")
+	var pen: ItemDef = DB.get_def("spirit_pendulum")
+	_ok(pen.stackable == false, "spirit_pendulum is not stackable")
+	_ok(DB.get_def("does_not_exist") == null, "unknown id returns null")
