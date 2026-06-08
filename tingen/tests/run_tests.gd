@@ -45,6 +45,7 @@ func _init() -> void:
 	_test_summoning_plan()
 	_test_occult_divination()
 	_test_occult_other_tools()
+	_test_player_actions()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -617,3 +618,35 @@ func _test_occult_other_tools() -> void:
 	OTM.use("gray_fog")
 	_ok(OTM.can_use("gray_fog") == false, "gray fog refused after 3 uses")
 	_ok(OTM.use("gray_fog").get("ok", false) == false, "gray fog 4th use blocked")
+
+func _test_player_actions() -> void:
+	print("[player actions]")
+	var PA: Object = root.get_node("/root/PlayerActions")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var OV: Object = root.get_node("/root/Overseer")
+	var EB: Object = root.get_node("/root/EventBus")
+	var AG: Object = root.get_node("/root/Agents")
+	AG.rebuild(); SP.reset(); OV.reset(); EB.clear()
+
+	# Sabotage: strips a cult ingredient, raises impede, sets back the countdown, and
+	# marks the player involved (so the overseer will now allow exposure).
+	var cd_before: int = SP.countdown_beats
+	var impede_before: float = SP.impede_score
+	_ok(PA.sabotage("ritual_salt"), "sabotage of a held ingredient succeeds")
+	_ok(SP.countdown_beats > cd_before, "sabotage sets back the summoning countdown")
+	_ok(SP.impede_score > impede_before, "sabotage raises impede")
+	_ok(EB.events("player_sabotage").size() == 1, "sabotage logs a player event")
+	_ok(OV.allows_exposure(), "sabotage marks the player involved")
+	# Sabotage of an absent ingredient fails and changes nothing.
+	_ok(PA.sabotage("does_not_exist") == false, "sabotage of an unheld ingredient fails")
+
+	# Social influence: turning the waverer flips his faction and raises impede.
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	_ok(orin.faction == "cult", "orin starts in the cult")
+	var impede2: float = SP.impede_score
+	_ok(PA.social_influence("lamplighter_orin"), "turning the waverer succeeds")
+	_ok(orin.faction == "ally", "the waverer is turned to an ally")
+	_ok(SP.impede_score > impede2, "turning the waverer raises impede")
+	_ok(EB.events("player_social").size() == 1, "social influence logs a player event")
+	# A non-waverer cannot be turned.
+	_ok(PA.social_influence("clerk_voss") == false, "the committed leader cannot be turned")
