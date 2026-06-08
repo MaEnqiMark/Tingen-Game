@@ -46,6 +46,7 @@ func _init() -> void:
 	_test_occult_divination()
 	_test_occult_other_tools()
 	_test_player_actions()
+	_test_combat_scaled_by_impede()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -650,3 +651,27 @@ func _test_player_actions() -> void:
 	_ok(EB.events("player_social").size() == 1, "social influence logs a player event")
 	# A non-waverer cannot be turned.
 	_ok(PA.social_influence("clerk_voss") == false, "the committed leader cannot be turned")
+
+func _test_combat_scaled_by_impede() -> void:
+	print("[combat]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+
+	# Strong manifestation (no impede): hard fight.
+	SP.reset()
+	var hard := CombatEncounter.new(SP.manifestation_strength())
+	var hard_result: Dictionary = hard.auto_resolve()
+
+	# Weakened manifestation (heavy impede + stripped ingredients): easy fight.
+	SP.reset()
+	SP.add_impede(70.0, "test")
+	SP.remove_ingredient("ritual_salt", 3)
+	var easy := CombatEncounter.new(SP.manifestation_strength())
+	var easy_result: Dictionary = easy.auto_resolve()
+
+	_ok(easy.enemy_max_hp < hard.enemy_max_hp, "more impede -> weaker enemy")
+	_ok(easy_result["player_hp_left"] > hard_result["player_hp_left"], "more impede -> player ends with more HP")
+	_ok(easy_result["win"] == true, "a heavily-impeded summoning is winnable")
+	_ok(hard_result.has("rounds"), "result reports the round count")
+	# The occult ability hits harder than a basic attack.
+	var enc := CombatEncounter.new(50.0)
+	_ok(enc.OCCULT_DAMAGE > enc.ATTACK_DAMAGE, "occult ability beats a basic attack")
