@@ -38,6 +38,7 @@ func _init() -> void:
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
 	_test_action_commit()
+	_test_agent_runtime_beat()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -377,3 +378,41 @@ func _test_action_commit() -> void:
 	# coordinate-string target resolves.
 	ActionCommit.commit({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "100,100"}}, voss)
 	_ok(true, "coordinate target does not error")
+
+func _test_agent_runtime_beat() -> void:
+	print("[agent runtime]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	var ART: Object = root.get_node("/root/AgentRuntime")
+	AG.rebuild()
+	EB.clear()
+	var voss: Agent = AG.get_agent("clerk_voss")
+	voss.position = Vector2(400, 300)
+	ART.player_position = Vector2(400, 300)
+	ART.active_radius = 50.0   # only voss is active
+
+	# Mock proposes a valid move for voss.
+	var mock := MockSidecar.new()
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	SB.set_client(mock)
+
+	var before: Vector2 = voss.position
+	ART.run_beat()
+	_ok(voss.position != before, "active agent acted on its proposal")
+	_ok(EB.events("agent_action").size() == 1, "one agent_action logged")
+	_ok(EB.events("agent_action")[0]["data"]["actor"] == "clerk_voss", "logged actor is voss")
+
+	# Invalid proposal -> rejected -> fallback.
+	EB.clear()
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "teleport", "args": {}})
+	ART.run_beat()
+	_ok(EB.events("action_rejected").size() == 1, "invalid action is rejected, not committed")
+	_ok(EB.events("agent_action").size() == 0, "no agent_action for the rejected proposal")
+
+	# Idle proposal -> no movement.
+	EB.clear()
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "idle", "args": {}})
+	var pos_idle: Vector2 = voss.position
+	ART.run_beat()
+	_ok(voss.position == pos_idle, "idle proposal leaves the agent in place")
