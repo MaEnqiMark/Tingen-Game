@@ -44,6 +44,7 @@ func _init() -> void:
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_occult_divination()
+	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
 	_test_player_actions()
 	_test_combat_scaled_by_impede()
@@ -590,6 +591,13 @@ func _test_occult_divination() -> void:
 	# No-name guarantee: the lead never contains the true resolved site id.
 	var true_site: String = String(WM.slots.get("primary_ritual_site", ""))
 	_ok(true_site == "" or not String(res["lead"]).contains(true_site), "lead never names the true site")
+
+func _test_divination_hints_never_name_site() -> void:
+	print("[divination no-name guarantee]")
+	for site in DivinationTool.SITE_HINTS.keys():
+		var hint: String = String(DivinationTool.SITE_HINTS[site])
+		_ok(not hint.to_lower().contains(String(site).to_lower()),
+			"hint for '%s' never contains its own site id" % site)
 
 func _test_occult_other_tools() -> void:
 	print("[occult other tools]")
