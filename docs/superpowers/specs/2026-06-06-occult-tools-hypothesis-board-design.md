@@ -1,11 +1,13 @@
 # Occult Tools + Gray-Fog Hypothesis Board — Design Spec
 
-**Date:** 2026-06-06
+**Date:** 2026-06-06 (architecture revised 2026-06-08)
 **Status:** Approved design, ready for implementation planning
 **Engine:** Godot 4.6 (GDScript, autoload singletons + data-driven JSON)
 **Scope:** The four occult investigation tools (GDD §12.2) and the Gray-Fog inference
 layer of the Investigation Board. The Ritual-Night endgame + light combat is a **separate,
 later spec** and is explicitly out of scope here.
+**Depends on:** the Inventory foundation spec (`2026-06-08-inventory-system-design.md`) —
+tools are `occult_tool` items and may consume `ingredient`s / produce items via `Inventory`.
 
 ---
 
@@ -21,31 +23,57 @@ thorough their investigation was will (in the later endgame spec) set how weak t
 
 ---
 
-## 2. Architecture (Approach C — confirmed)
+## 2. Architecture (OOP manager + per-tool subclasses — revised 2026-06-08)
 
-Three new code units, split by lifetime:
+An OOP hierarchy: an abstract base class with a template-method `use()`, concrete tool
+subclasses, a coordinating manager autoload, and the persistent board.
+
+### 2.1 `OccultTool` (abstract base, `class_name OccultTool extends RefCounted`)
+
+```
+id, name, def              # def loaded from data/occult_tools.json
+can_use(ctx) -> bool        # cooldown ready? uses left? required ingredients in Inventory?
+compute_cost() -> Dictionary  # { fatigue:float, attention:float, items:{id:qty} }
+use(ctx) -> OccultResult     # TEMPLATE METHOD (final): can_use → pay cost → _perform → _apply_risk
+_perform(ctx) -> OccultResult # VIRTUAL — each subclass's actual effect (must override)
+_apply_risk(result, rng, corruption) -> void  # VIRTUAL — how THIS tool's risk manifests
+```
+
+`use()` is the fixed template: it verifies `can_use`, pays the cost (deducts
+`fatigue`/`attention` via `WorldState.adjust`, removes `items` via `Inventory.remove`), calls
+the subclass `_perform`, then `_apply_risk`, and returns an `OccultResult`
+(`{ ok, kind, text, produced_clue_id, lead, mislead }`). Subclasses never re-implement the
+cost/cooldown plumbing — only `_perform` and `_apply_risk`.
+
+Concrete subclasses: **`DivinationTool`**, **`ResidueSightTool`**, **`DreamFragmentsTool`**,
+**`GrayFogTool`** — each in its own file, each declaring its risk shape.
+
+### 2.2 Code units
 
 | Unit | Kind | Responsibility |
 |------|------|----------------|
-| `OccultTools` | autoload | The **transient verbs**: three one-shot actions (Divination / Residue Sight / Dream Fragments) plus the entry point into Gray-Fog reconstruction. Owns cooldowns + per-run use counts. |
-| `HypothesisBoard` | autoload | The **persistent inference model**: open questions, candidate answers, clue→candidate links, derived confidence, directional leads. Serializes via `to_dict()`/`from_dict()`. |
-| `OccultRisk` | shared static helper (`class_name`, not an autoload) | Pure functions that apply the **fatigue/attention cost** and **corruption-driven noise/misleading** for any tool, using a seeded RNG tied to `WorldManager.seed_value`. |
+| `OccultTool` (+4 subclasses) | `class_name`, RefCounted | Per-tool behavior, cost, and risk shape. Self-contained, testable in isolation. |
+| `OccultToolManager` | autoload | Owns the roster of tool instances (built from `occult_tools.json`), cooldown timers, per-run Gray-Fog use count, the **seeded RNG** (from `WorldManager.seed_value`), and all routing between tools, `Inventory`, and the UI. The only thing the HUD/UI talks to. `to_dict()/from_dict()` for cooldowns + uses. |
+| `HypothesisBoard` | autoload | The **persistent inference model**: open questions, candidate answers, clue→candidate links, derived confidence, directional leads. `to_dict()/from_dict()`. |
+| `OccultRisk` | shared static lib (`class_name`, not autoload) | Thin **seeded-RNG primitives** the tools call — `roll_mislead(rng, corruption) -> bool`, `noise(rng, magnitude) -> float`. Does NOT decide how risk shows up (that's each tool's `_apply_risk`); it only rolls deterministically. |
 
-**Why split (vs. a single `OccultManager`):** one-shot actions and long-lived save/load
-state have different lifetimes and test surfaces; mixing them in one autoload (rejected
-Approach A) makes save/load and corruption-noise logic harder to reason about. Per-tool
-scene nodes (rejected Approach B) multiply files and make shared cost/corruption logic
-awkward. See `DESIGN_DECISIONS.md` → "Code architecture?".
+**Why this shape (vs. one `OccultTools` autoload):** the four tools have genuinely different
+risk behaviors (mislead vs. false-positive vs. wrong-association vs. noise-link); co-locating
+each tool's cost+risk in its own subclass is more cohesive and makes adding a 5th tool a
+one-file change. The manager centralizes the cross-cutting concerns (RNG seeding, cooldowns,
+inventory, save) so determinism/testing stay in one place. Fully self-contained tools with no
+shared RNG helper were rejected — they'd duplicate seeding and hurt deterministic tests. See
+`DESIGN_DECISIONS.md` → "Code architecture (revised 2026-06-08)".
 
-New autoloads register in `project.godot` `[autoload]` after the existing eight, before
-`DevConsole`:
+New autoloads register in `project.godot` `[autoload]` after `Inventory` (see inventory
+spec), before `DevConsole`:
 
 ```
-OccultTools="*res://src/OccultTools.gd"
+OccultToolManager="*res://src/OccultToolManager.gd"
 HypothesisBoard="*res://src/HypothesisBoard.gd"
 ```
 
-(`OccultRisk` is a plain `class_name OccultRisk` static utility — no autoload entry.)
+(`OccultTool` + subclasses and `OccultRisk` are `class_name` scripts — no autoload entries.)
 
 ---
 
@@ -76,39 +104,53 @@ One entry per tool: cost, cooldown, per-run uses, output shaping. Example shape:
 {
   "divination": {
     "name": "Divination",
+    "item_id": "divination_kit",
     "fatigue_cost": 8.0,
     "attention_cost": 4.0,
+    "ingredient_cost": { "candle": 1 },
     "cooldown_refreshes": 1,
     "uses_per_run": -1,
     "hint_pool": "divination_hints"
   },
   "residue_sight": {
     "name": "Residue Sight",
+    "item_id": "spirit_lens",
     "fatigue_cost": 6.0,
     "attention_cost": 2.0,
+    "ingredient_cost": {},
     "cooldown_refreshes": 0,
     "uses_per_run": -1
   },
   "dream_fragments": {
     "name": "Dream Fragments",
+    "item_id": "dream_draught",
     "fatigue_cost": 12.0,
     "attention_cost": 0.0,
+    "ingredient_cost": { "dream_herb": 1 },
     "cooldown_refreshes": 2,
     "uses_per_run": -1,
-    "hint_pool": "dream_hints"
+    "hint_pool": "dream_hints",
+    "produces": { "dream_residue": 1 }
   },
   "gray_fog": {
     "name": "Gray-Fog Reconstruction",
+    "item_id": "gray_fog_focus",
     "fatigue_cost": 15.0,
     "attention_cost": 8.0,
+    "ingredient_cost": { "consecrated_chalk": 1 },
     "cooldown_refreshes": 1,
     "uses_per_run": 3
   }
 }
 ```
 
-`uses_per_run: -1` = unlimited (gated only by cost + cooldown). Gray-Fog is the one
-hard-capped tool (3 uses) so its directional lead stays precious.
+- `uses_per_run: -1` = unlimited (gated only by cost + cooldown + ingredients). Gray-Fog is the
+  one hard-capped tool (3 uses) so its directional lead stays precious.
+- `item_id` = the `occult_tool` inventory item the player must **own** to use the tool
+  (`Inventory.has(item_id)` gates `can_use`).
+- `ingredient_cost` = `{item_id: qty}` consumed from `Inventory` on use (empty = free).
+- `produces` (optional) = items added to `Inventory` on success (e.g. Dream Fragments yields a
+  `dream_residue` reagent). Item ids must exist in `data/items.json` (inventory spec).
 
 ### 4.2 `clues.json` — new `supports` field
 Each clue may declare which candidate(s) it argues for and how strongly. Optional; clues
@@ -138,7 +180,10 @@ without naming a site. Stored in `occult_tools.json` or a sibling `occult_hints.
 
 ## 5. The four tools
 
-All four route their cost + corruption roll through `OccultRisk` before producing output.
+Each tool is an `OccultTool` subclass. The base `use()` template pays the cost
+(fatigue/attention via `WorldState.adjust`, ingredients via `Inventory.remove`, plus any
+`produces` via `Inventory.add`) and then calls the subclass `_perform` + `_apply_risk`; each
+`_apply_risk` uses `OccultRisk` seeded primitives.
 
 ### 5.1 Divination (占卜)
 - **Input:** none (reads current stage + `WorldManager.slots`).
@@ -216,6 +261,9 @@ only later, physically, in the endgame.
 - New input action `toggle_occult` (suggest **Q**) opens `OccultPanel.tscn` (a `Control`
   scene mirroring the existing `DistrictMap.tscn` / HUD conventions): three buttons for the
   one-shot tools + a button that enters Gray-Fog inference mode on the Investigation Board.
+  The panel talks only to `OccultToolManager` (e.g. `OccultToolManager.use("divination")`);
+  buttons disable when the manager reports `can_use == false` (missing tool item, missing
+  ingredient, on cooldown, or out of Gray-Fog uses).
 - **Gray-Fog inference mode** is rendered *inside the existing Investigation Board* as a
   costed overlay state (auto-links drawn, confidence bars per slot, the one directional lead
   banner) — **not** a new window. Toggling it consumes a Gray-Fog use.
@@ -224,19 +272,24 @@ only later, physically, in the endgame.
 
 ---
 
-## 8. OccultRisk (shared helper) contract
+## 8. OccultRisk (shared primitives) + cost flow
+
+`OccultRisk` is a thin library of **seeded RNG primitives** — it does not decide how risk
+manifests (each tool's `_apply_risk` does that):
 
 ```
-static func roll(tool_id: String, rng: RandomNumberGenerator,
-                 corruption: float) -> { mislead: bool, noise: float }
-static func apply_cost(tool_id: String) -> void   # deduct fatigue/attention via WorldState.adjust
+static func roll_mislead(rng: RandomNumberGenerator, corruption: float) -> bool
+static func noise(rng: RandomNumberGenerator, magnitude: float) -> float
 ```
 
-- The RNG is seeded from `WorldManager.seed_value` (+ a per-call salt like use-count) so a
-  given run is **deterministic and testable**.
-- `mislead` probability scales with `corruption` (e.g. 0 below a floor, rising past ~60).
-- Costs are read from `occult_tools.json` and applied to `fatigue` / `attention` through
-  `WorldState.adjust`.
+- The RNG is owned by `OccultToolManager`, seeded from `WorldManager.seed_value` (+ a per-call
+  salt such as use-count) so a given run is **deterministic and testable**.
+- `roll_mislead` probability scales with `corruption` (e.g. 0 below a floor, rising past ~60).
+
+**Cost flow** lives in the base `OccultTool.use()` template (not in `OccultRisk`): read
+`compute_cost()`, deduct `fatigue`/`attention` via `WorldState.adjust`, consume
+`ingredient_cost` via `Inventory.remove`, and add any `produces` via `Inventory.add`. The
+manager passes its RNG + the current `corruption` into the tool so `_apply_risk` can roll.
 
 ---
 
@@ -244,10 +297,12 @@ static func apply_cost(tool_id: String) -> void   # deduct fatigue/attention via
 
 - `HypothesisBoard.to_dict()/from_dict()` persists `player_links` and `flags` (auto-links and
   candidates are re-derived from `SLOT_DEFS` + `ClueDB` on load, so they are not stored).
-- `OccultTools.to_dict()/from_dict()` persists per-tool cooldown timers and remaining
-  Gray-Fog uses.
+- `OccultToolManager.to_dict()/from_dict()` persists per-tool cooldown timers and remaining
+  Gray-Fog uses (the tool *instances* are rebuilt from `occult_tools.json` on load).
 - Both are added to `SaveManager`'s payload (`occult_tools`, `hypothesis_board` keys) and its
   load path, following the existing `to_dict()/from_dict()` contract used by every subsystem.
+- Tool **ownership** and consumed/produced reagents persist via the `Inventory` save (inventory
+  spec), not here.
 
 ---
 
@@ -257,11 +312,16 @@ static func apply_cost(tool_id: String) -> void   # deduct fatigue/attention via
    produces the expected normalized confidence per slot.
 2. **Corruption-noise determinism** — same seed + same corruption ⇒ identical `mislead`/noise
    roll; raising corruption raises mislead frequency over N rolls.
-3. **Cost deduction** — using a tool reduces `fatigue`/`attention` by the JSON-declared amount.
-4. **Gray-Fog use limit** — the 4th Gray-Fog invocation in a run is refused.
-5. **Save/load round-trip** — `to_dict()`→`from_dict()` restores player links, flags, and
+3. **Cost deduction** — using a tool reduces `fatigue`/`attention` by the JSON-declared amount
+   and consumes its `ingredient_cost` from `Inventory`.
+4. **Ownership + ingredient gating** — `can_use` is false when the tool's `item_id` is not
+   owned, or a required ingredient is missing; true once both are present.
+5. **Produces** — Dream Fragments adds its `produces` item (`dream_residue`) to `Inventory` on
+   success.
+6. **Gray-Fog use limit** — the 4th Gray-Fog invocation in a run is refused.
+7. **Save/load round-trip** — `to_dict()`→`from_dict()` restores player links, flags, and
    remaining Gray-Fog uses exactly.
-6. **No-name guarantee** — a directional lead string never equals/contains the true slot's
+8. **No-name guarantee** — a directional lead string never equals/contains the true slot's
    resolved candidate id/name (guards the "never names the site" rule).
 
 ---
@@ -281,4 +341,6 @@ All choices below are logged in `DESIGN_DECISIONS.md` →
 build all four tools fully; tools degrade with corruption (mislead + cost fatigue/attention);
 Gray-Fog board = hybrid auto-link + edit; **no submission** — organizer + occasional
 direction only; board **never names the site**, directional hints only; **architecture =
-Approach C**.
+OOP manager + per-tool `OccultTool` subclasses + `OccultRisk` seeded primitives** (revised
+2026-06-08, supersedes the single-autoload Approach C); **tools are inventory items** that
+consume/produce reagents (depends on the Inventory foundation spec).

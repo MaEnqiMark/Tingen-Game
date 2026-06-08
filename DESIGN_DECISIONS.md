@@ -246,3 +246,42 @@ chosen option + brief description of the alternatives.)
   `OccultManager` autoload that owns both verbs and state (A — simpler but mixes one-shot
   actions with long-lived save/load state); per-tool scene nodes (B — more files, awkward
   for shared cost/corruption logic and save/load).
+- **Code architecture (revised 2026-06-08)?** → **OOP manager + per-tool subclasses.** An
+  abstract `OccultTool` base class exposes `use()`, `compute_cost()`, `can_use()`, with a
+  template-method `use()` that checks → pays cost → calls virtual `_perform()` → applies
+  risk. Concrete subclasses (`DivinationTool`, `ResidueSightTool`, `DreamFragmentsTool`,
+  `GrayFogTool`) own their tool-specific behavior, cost, and risk shape. An
+  `OccultToolManager` autoload owns the tool roster, cooldowns, the seeded RNG (from
+  `WorldManager.seed_value`), and inventory routing. `OccultRisk` is demoted to a library of
+  **shared seeded-RNG primitives** the tools call (mislead/noise rolls), not the risk
+  decision-maker. `HypothesisBoard` stays a separate autoload. *Supersedes the single
+  `OccultTools` autoload of the prior C decision. Alts (rejected):* keep one `OccultTools`
+  autoload holding all verbs + a decision-making `OccultRisk` (less extensible, risk logic
+  not co-located with each tool); fully self-contained tools with no shared RNG helper
+  (duplicates seeding logic, hurts deterministic testing).
+- **Inventory system?** → **Build a general, data-driven inventory system; the occult tools
+  are items in it, and tools may consume/produce items.** Item categories envisioned: occult
+  tools, ritual ingredients (to perform rituals), sustenance (food/water), and regular tools.
+  *Alts (rejected):* reuse only the clue inventory (`ClueDB`) (clues aren't carryable goods,
+  no consume/produce); per-tool ad-hoc state (no shared item economy, can't support rituals).
+- **Inventory build scope?** → **Inventory foundation now, ritual engine later.** Build
+  `data/items.json` + an `Inventory` autoload (counts, add/remove/use, save/load) + tool-as-item
+  + consume/produce now; the ritual recipe engine is designed with a later spec. *Alts
+  (rejected):* inventory + basic rituals now (bigger, pulls endgame design forward); full
+  inventory + rituals + crafting (largest, risks scope creep).
+- **Carry limits?** → **Unlimited capacity; reagents/food stack, unique tools/key items
+  don't.** Resource tension comes from ingredient scarcity, not bag space. *Alts (rejected):*
+  slot/weight capacity (more survival-sim tension but more UI + balancing).
+- **Item taxonomy (LotM-grounded)?** → **Categories:** `occult_tool`, `divination_focus`
+  (pendulum/tarot/dowsing rod/scrying mirror — canon Seer methods), `ingredient` (chalk,
+  candles, salt, incense, herbs, monster-parts), `characteristic` (rare potion main material,
+  魔药特性), `medium` (belonging/name slip/relic/corpse-token, targets divination & séance),
+  `sustenance` (eases `fatigue`), `tool` (lantern/lockpick), `key_item` (sealed artifacts).
+  Verified against the LotM wiki (Seer divination methods; Potion System; Ritualistic Magic).
+- **Ritual purpose (fiction, for later engine)?** → **Rituals are the unifying primitive for
+  many LotM acts:** divination/fortune-telling, potion-brewing (魔药), questioning the dead /
+  séance (通灵), prayer to deities (祈祷), gray-fog transit (上灰雾), the cult's summoning of the
+  descending evil god (邪神降临, endgame), and warding/sealing (封印). A ritual = (foci +
+  ingredients + place/time conditions) → effect. *Only the ingredient slots are built now; the
+  ritual engine is deferred.* *Alts (rejected):* model each act as a bespoke mechanic (no shared
+  ritual abstraction, more code, inconsistent).
