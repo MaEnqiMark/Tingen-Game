@@ -47,6 +47,7 @@ func _init() -> void:
 	_test_occult_other_tools()
 	_test_player_actions()
 	_test_combat_scaled_by_impede()
+	_test_player_state_save_load()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -675,3 +676,23 @@ func _test_combat_scaled_by_impede() -> void:
 	# The occult ability hits harder than a basic attack.
 	var enc := CombatEncounter.new(50.0)
 	_ok(enc.OCCULT_DAMAGE > enc.ATTACK_DAMAGE, "occult ability beats a basic attack")
+
+func _test_player_state_save_load() -> void:
+	print("[player state save/load]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var OV: Object = root.get_node("/root/Overseer")
+	var OTM: Object = root.get_node("/root/OccultToolManager")
+	var SM: Object = root.get_node("/root/SaveManager")
+	SP.reset(); OV.reset(); OTM.rebuild()
+	SP.add_impede(33.0, "test")
+	SP.remove_ingredient("candle", 1)
+	OV.player_involved = true
+	var tmp := "user://test_player_state.json"
+	_ok(SM.save_game(tmp), "save_game writes file")
+	SP.reset(); OV.reset()
+	_ok(SP.impede_score == 0.0, "impede cleared before load")
+	_ok(SM.load_game(tmp), "load_game reads file")
+	_ok(abs(SP.impede_score - 33.0) < 0.01, "impede restored")
+	_ok(SP.ingredients.get("candle", 0) == 2, "cult ingredient stock restored")
+	_ok(OV.player_involved == true, "overseer player-involvement restored")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))

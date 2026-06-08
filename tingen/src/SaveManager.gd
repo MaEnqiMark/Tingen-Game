@@ -28,6 +28,9 @@ func save_game(path: String = SAVE_PATH) -> bool:
 		"world_manager": WorldManager.to_dict(),
 		"clues": ClueDB.to_dict(),
 		"inventory": Inventory.to_dict(),
+		"summoning_plan": SummoningPlan.to_dict(),
+		"overseer": Overseer.to_dict(),
+		"occult_tools": OccultToolManager.to_dict(),
 		"event_bus": EventBus.to_dict(),
 		"agents": Agents.to_dict(),
 		"scene_path": gc.current_scene_path if gc else "",
@@ -57,6 +60,9 @@ func load_game(path: String = SAVE_PATH) -> bool:
 	ClueDB.from_dict(data.get("clues", {}))
 	Clock.from_dict(data.get("clock", {}))
 	WorldState.from_dict(data.get("world_state", {}))
+	SummoningPlan.from_dict(data.get("summoning_plan", {}))
+	Overseer.from_dict(data.get("overseer", {}))
+	OccultToolManager.from_dict(data.get("occult_tools", {}))
 	Inventory.from_dict(data.get("inventory", {}))
 	EventBus.from_dict(data.get("event_bus", {}))
 	Agents.from_dict(data.get("agents", {}))
