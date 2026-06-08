@@ -8,6 +8,7 @@ extends Node
 signal phase_changed(phase: String, day: int)
 signal day_rolled(day: int)
 signal minute_ticked(minute_of_day: int, day: int)
+signal beat_ticked(beat_index: int, day: int)
 
 const DAY_MINUTES: int = 1440
 
@@ -28,6 +29,9 @@ var minute_of_day: int = 480   # 08:00
 var phase: String = "morning"
 var real_seconds_per_game_minute: float = 1.0
 var paused: bool = false
+var minutes_per_beat: int = 15
+var beat_index: int = 0
+var _beat_accum_minutes: int = 0
 
 var _accum: float = 0.0
 
@@ -55,6 +59,11 @@ func _advance_one_minute() -> void:
 	if phase != prev_phase:
 		WorldState.time_phase = _display_phase()
 		phase_changed.emit(phase, day)
+	_beat_accum_minutes += 1
+	if _beat_accum_minutes >= minutes_per_beat:
+		_beat_accum_minutes = 0
+		beat_index += 1
+		beat_ticked.emit(beat_index, day)
 
 static func phase_for_minute(minute: int) -> String:
 	var result: String = "late-night"
@@ -88,7 +97,16 @@ func _display_phase() -> String:
 	return "%s - %s" % [phase.capitalize(), hhmm()]
 
 func to_dict() -> Dictionary:
-	return {"day": day, "minute_of_day": minute_of_day}
+	return {
+		"day": day,
+		"minute_of_day": minute_of_day,
+		"beat_index": beat_index,
+		"minutes_per_beat": minutes_per_beat,
+		"beat_accum_minutes": _beat_accum_minutes,
+	}
 
 func from_dict(d: Dictionary) -> void:
 	set_time(int(d.get("day", 1)), int(d.get("minute_of_day", 480)))
+	beat_index = int(d.get("beat_index", 0))
+	minutes_per_beat = int(d.get("minutes_per_beat", 15))
+	_beat_accum_minutes = int(d.get("beat_accum_minutes", 0))

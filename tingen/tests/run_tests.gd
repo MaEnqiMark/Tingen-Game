@@ -23,6 +23,7 @@ func _init() -> void:
 	_test_clue_collection()
 	_test_event_scoring()
 	_test_save_load_roundtrip()
+	_test_clock_beats()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -120,3 +121,19 @@ func _test_save_load_roundtrip() -> void:
 	_ok(abs(WS.get_pressure(&"panic") - 42.0) < 0.01, "panic restored to 42")
 	_ok(CD.is_collected("spent_revolver"), "clue restored after load")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+
+func _test_clock_beats() -> void:
+	print("[clock beats]")
+	var Clk: Object = root.get_node("/root/Clock")
+	Clk.minutes_per_beat = 15
+	Clk.beat_index = 0
+	Clk._beat_accum_minutes = 0
+	var seen := {"n": 0}
+	var cb := func(_bi: int, _d: int) -> void: seen["n"] += 1
+	Clk.beat_ticked.connect(cb)
+	Clk.advance_minutes(15)
+	_ok(Clk.beat_index == 1, "15 minutes -> 1 beat")
+	_ok(seen["n"] == 1, "beat_ticked emitted once")
+	Clk.advance_minutes(30)
+	_ok(Clk.beat_index == 3, "45 minutes total -> 3 beats")
+	Clk.beat_ticked.disconnect(cb)
