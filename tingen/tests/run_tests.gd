@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_save_load_roundtrip()
 	_test_clock_beats()
 	_test_event_bus()
+	_test_agent_fallback()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -150,3 +151,19 @@ func _test_event_bus() -> void:
 	EB.emit_event("other", {})
 	_ok(EB.events("test_action").size() == 1, "filter by type returns only matches")
 	_ok(EB.latest(1).size() == 1, "latest(1) returns one event")
+
+func _test_agent_fallback() -> void:
+	print("[agent fallback]")
+	var ND: Object = root.get_node("/root/NpcDB")
+	var target: Vector2 = ND.waypoint_for("lamplighter_orin", "morning")
+	var a: Agent = Agent.new("lamplighter_orin")
+	a.position = Vector2.ZERO
+	var before: float = a.distance_to(target)
+	a.tick_fallback("morning", 100.0)
+	var after: float = a.distance_to(target)
+	_ok(after < before, "fallback step moves agent toward its waypoint")
+	for _i in range(100):
+		a.tick_fallback("morning", 100.0)
+	_ok(a.position == target, "fallback converges onto the waypoint")
+	a.remember("saw the player near the warehouse")
+	_ok(a.short_memory.size() == 1, "remember() appends to short memory")
