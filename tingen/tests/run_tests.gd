@@ -26,6 +26,7 @@ func _init() -> void:
 	_test_clock_beats()
 	_test_event_bus()
 	_test_agent_fallback()
+	_test_agent_registry()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -167,3 +168,15 @@ func _test_agent_fallback() -> void:
 	_ok(a.position == target, "fallback converges onto the waypoint")
 	a.remember("saw the player near the warehouse")
 	_ok(a.short_memory.size() == 1, "remember() appends to short memory")
+
+func _test_agent_registry() -> void:
+	print("[agent registry]")
+	var AG: Object = root.get_node("/root/Agents")
+	AG.rebuild()
+	_ok(AG.get_agent("lamplighter_orin") != null, "registry builds a known agent")
+	_ok(AG.all().size() >= 2, "registry holds at least the seeded npcs")
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	var near: Array = AG.active(orin.position, 1.0)
+	_ok(near.has(orin), "active() finds an agent at its own position")
+	var far: Array = AG.active(orin.position + Vector2(99999, 0), 1.0)
+	_ok(not far.has(orin), "active() excludes agents outside the radius")
