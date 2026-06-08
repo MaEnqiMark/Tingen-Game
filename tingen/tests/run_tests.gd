@@ -36,6 +36,7 @@ func _init() -> void:
 	_test_action_schema()
 	_test_mock_sidecar()
 	_test_sidecar_bridge()
+	_test_perception_snapshot()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -325,3 +326,29 @@ func _test_sidecar_bridge() -> void:
 	_ok(out[0]["verb"] == "attack", "bridge returns the active client's proposal")
 	# Every proposal the bridge returns must be schema-valid for the mock to be useful.
 	_ok(ActionSchema.validate(out[0])["ok"], "bridged proposal is schema-valid")
+
+func _test_perception_snapshot() -> void:
+	print("[perception]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild()
+	EB.clear()
+	EB.emit_event("test_seed", {"x": 1})
+	var voss: Agent = AG.get_agent("clerk_voss")
+	var snap: Dictionary = Perception.build_snapshot(voss, voss.position)
+	_ok(snap.get("agent_id", "") == "clerk_voss", "snapshot carries agent_id")
+	_ok(snap.has("intent"), "snapshot includes intent")
+	_ok(snap.has("position"), "snapshot includes position")
+	_ok(snap.has("nearby"), "snapshot includes nearby agents")
+	_ok(snap.has("recent_events"), "snapshot includes recent events")
+	_ok(snap.has("stage"), "snapshot includes world stage")
+	_ok(snap.has("pressures"), "snapshot includes pressures")
+	# Another agent placed at voss's position should show up as nearby.
+	var pell: Agent = AG.get_agent("dockhand_pell")
+	pell.position = voss.position
+	var snap2: Dictionary = Perception.build_snapshot(voss, voss.position)
+	var nearby_ids: Array = []
+	for n in snap2["nearby"]:
+		nearby_ids.append(n["id"])
+	_ok(nearby_ids.has("dockhand_pell"), "co-located agent appears in nearby")
+	_ok(not nearby_ids.has("clerk_voss"), "agent does not list itself as nearby")
