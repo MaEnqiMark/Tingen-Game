@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_mock_sidecar()
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
+	_test_action_commit()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -352,3 +353,27 @@ func _test_perception_snapshot() -> void:
 		nearby_ids.append(n["id"])
 	_ok(nearby_ids.has("dockhand_pell"), "co-located agent appears in nearby")
 	_ok(not nearby_ids.has("clerk_voss"), "agent does not list itself as nearby")
+
+func _test_action_commit() -> void:
+	print("[action commit]")
+	var AG: Object = root.get_node("/root/Agents")
+	AG.rebuild()
+	var voss: Agent = AG.get_agent("clerk_voss")
+	voss.position = Vector2.ZERO
+	var before: float = voss.position.distance_to(Vector2(420, 360))
+	var out: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)
+	_ok(out.has("moved_to"), "move_to reports a new position")
+	_ok(voss.position.distance_to(Vector2(420, 360)) < before, "agent moved toward the site")
+	_ok(voss.current_action.get("verb", "") == "move_to", "current_action is recorded")
+	# talk_to records memory, no movement.
+	var pos_before: Vector2 = voss.position
+	ActionCommit.commit({"actor": "clerk_voss", "verb": "talk_to", "args": {"agent": "lamplighter_orin", "topic": "ritual"}}, voss)
+	_ok(voss.position == pos_before, "talk_to does not move the agent")
+	_ok(voss.short_memory.size() >= 1, "talk_to records a memory")
+	# move_to with an unresolved target is a safe no-op.
+	var out2: Dictionary = ActionCommit.commit({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "nowhere_xyz"}}, voss)
+	_ok(out2.has("noop"), "unresolved move target is a no-op")
+	# coordinate-string target resolves.
+	ActionCommit.commit({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "100,100"}}, voss)
+	_ok(true, "coordinate target does not error")
