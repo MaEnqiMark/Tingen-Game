@@ -43,6 +43,7 @@ func _init() -> void:
 	_test_critic_verdicts()
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
+	_test_occult_divination()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -558,3 +559,30 @@ func _test_summoning_plan() -> void:
 	# Strength is clamped to a floor.
 	SP.add_impede(1000.0, "overkill")
 	_ok(SP.manifestation_strength() >= SP.MIN_STRENGTH, "strength never drops below the floor")
+
+func _test_occult_divination() -> void:
+	print("[occult divination]")
+	var OTM: Object = root.get_node("/root/OccultToolManager")
+	var INV: Object = root.get_node("/root/Inventory")
+	var WS: Object = root.get_node("/root/WorldState")
+	var WM: Object = root.get_node("/root/WorldManager")
+	OTM.rebuild()
+	INV.clear()
+	WS.set_pressure(&"fatigue", 0.0)
+	WS.set_pressure(&"attention", 0.0)
+	WS.set_pressure(&"corruption", 0.0)   # no mislead at zero corruption
+	# Gating: cannot use without owning the kit + the candle ingredient.
+	_ok(OTM.can_use("divination") == false, "divination blocked without tool item")
+	INV.add("divination_kit")
+	_ok(OTM.can_use("divination") == false, "divination blocked without candle ingredient")
+	INV.add("candle", 1)
+	_ok(OTM.can_use("divination") == true, "divination usable once kit + candle present")
+	# Use: pays cost, consumes the candle, yields a directional lead.
+	var res: Dictionary = OTM.use("divination")
+	_ok(res.get("ok", false), "divination returns ok")
+	_ok(String(res.get("lead", "")) != "", "divination yields a directional lead")
+	_ok(WS.get_pressure(&"fatigue") > 0.0, "divination spent fatigue")
+	_ok(INV.count_of("candle") == 0, "divination consumed the candle")
+	# No-name guarantee: the lead never contains the true resolved site id.
+	var true_site: String = String(WM.slots.get("primary_ritual_site", ""))
+	_ok(true_site == "" or not String(res["lead"]).contains(true_site), "lead never names the true site")
