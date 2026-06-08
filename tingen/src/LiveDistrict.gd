@@ -15,6 +15,9 @@ var _player: Node2D = null
 func _ready() -> void:
 	_spawn_player()
 	_spawn_agents()
+	# Guard assumes at most one LiveDistrict is alive (GameController._swap_world frees
+	# the old world before adding the new one). It also keeps the headless test suite —
+	# which adds this scene to /root directly, bypassing _swap_world — from double-connecting.
 	if not SummoningPlan.summoning_climax.is_connected(_on_climax):
 		SummoningPlan.summoning_climax.connect(_on_climax)
 
