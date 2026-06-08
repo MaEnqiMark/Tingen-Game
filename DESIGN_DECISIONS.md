@@ -416,3 +416,82 @@ verbs/combat). All landed with a green suite (189 passed, 0 failed) and two-stag
   string does not survive an `OS.execute` argv intact (the double-quotes were stripped, mangling the
   JSON on the Python side). *Alts (rejected):* inline JSON arg (proved fragile in practice);
   stdin/pipe (Godot's `OS.execute` cannot feed stdin).
+
+## Decision log — Live scene + UI panels (wire-up build, 2026-06-08)
+
+The agent-sim brain (`AgentRuntime`/`Agents`/`Critic`/`SummoningPlan`) shipped headless and ran
+*parallel to* the rendered `NPC.gd` nodes, which independently re-read `NpcDB` schedules in
+`_physics_process`. `AgentRuntime.player_position` was a hardcoded `Vector2(440,300)`. This build
+binds the brain to the scene and adds the four player-facing panels (character card, cult progress,
+ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on.
+
+- **On-screen NPCs vs. agent registry?** → **The rendered NPC node IS its `Agent` — it binds by id
+  and reads its position FROM the registry each frame** (the beat loop moves the `Agent`; the node
+  lerps to follow), and the live scene spawns one NPC per registry agent (data-driven) instead of
+  hand-placing them. One source of truth for who's where. *Alts (rejected):* keep the two
+  representations split and sync deltas both ways (two movement systems fighting, drift, double
+  logic); let the node keep driving itself off `NpcDB` and ignore the brain (the visible world would
+  contradict the simulation the panels report on).
+- **`AgentRuntime.player_position`?** → **The live scene pushes the real player's `global_position`
+  into `AgentRuntime` every frame** so "active agents near the player" is true to what's on screen.
+  *Alts (rejected):* leave the hardcoded stand-in (attention budget keys off a phantom location);
+  poll the player from inside the runtime (the autoload would need a scene reference, inverting the
+  dependency).
+- **Agent "thought" line?** → **New `Agent.thought` field**, set by the sidecar/critic when one
+  speaks and otherwise **synthesized deterministically** from the agent's current action + intent,
+  surfaced in the character card. *Alts (rejected):* reuse `intent` as the thought (intent is the
+  long-horizon goal, not the moment-to-moment read; they want both shown); pure on-the-fly synthesis
+  with no stored field (the real LLM needs somewhere to write a genuine thought).
+- **Summoning countdown forward-tick + climax?** → **`SummoningPlan` decrements `countdown_beats`
+  on `Clock.beat_ticked` and fires a `CombatEncounter(manifestation_strength())` climax at 0**,
+  routed through a signal so the scene can present the fight. (Lifts the passive-countdown slice
+  boundary noted in the previous build.) *Alts (rejected):* tick the countdown in the scene's
+  `_process` (couples the doomsday clock to a scene being loaded — it must run in the headless sim
+  too); fire the climax straight from `SummoningPlan` with no signal (the data model would reach up
+  into scene/UI, inverting the dependency).
+- **Prayer adjudication?** → **Through the same sidecar contract as agent actions** — a `pray`
+  request returns one of four outcome categories the engine then applies; ships with a deterministic
+  `MockSidecar` adjudicator now and a GDScript↔Python parity test, real LLM later. *Alts (rejected):*
+  in-engine GDScript heuristic table (bakes the "mysterious, tarot-style" judgment the user wants the
+  LLM to own into hardcoded rules); a separate prayer-only service (a second nondeterminism seam to
+  secure and quarantine when the existing sidecar already adjudicates constrained verbs).
+- **Prayer outcome vocabulary?** → **Four canon-faithful categories the adjudicator picks from:**
+  Granted (应允 — a boon), Cryptic (神秘应答 — a riddling lead in the Fool's 愚者 register), Ignored
+  (无应 — nothing happens), Punished (惩罚 — damage / corruption spike, up to death for defiling a
+  god). Which one fires depends on the god, the player's standing, and the prayer's content — left to
+  the adjudicator, per the user's canon call. *Alts (rejected):* a single "boon or nothing" roll
+  (throws away the punishment + cryptic registers that are the whole point in LotM); free-text
+  outcomes with no category (the engine can't apply mechanical effects to arbitrary prose).
+- **Pantheon scope?** → **A focused Tingen set, not the full LotM 22-pathway pantheon:** the cult's
+  descending outer god (外神/邪神), the Goddess of the Night / 黑夜女神 (Church of Evernight), the
+  Eternal Blazing Sun / 永恒烈阳, and the Fool / 愚者. *Alts (rejected):* the full pantheon (content
+  sprawl far beyond a vertical slice, most deities irrelevant to this district's story); a single
+  prayer target (kills the standing/affinity contrast — praying to the Sun vs. the cult's god should
+  read very differently).
+
+### Planning refinements — prayer backend (Plans E/F)
+
+- **Where prayer adjudication attaches to the contract?** → **A second method `adjudicate_prayer(request)`
+  on `SidecarClient`, parallel to `propose(snapshots)` — not routed through the agents'
+  propose→critic→commit action loop.** A prayer needs an *adjudicated outcome* (a verdict the engine
+  then applies), not a world-mutating *action*; the shapes differ. *Alts (rejected):* feed prayer
+  through `propose`/`Critic`/`ActionCommit` (forces a player petition into the agent-action shape and
+  drags the critic into judging the player); a wholly separate prayer microservice (a second
+  nondeterminism seam to quarantine when the existing sidecar boundary already fits).
+- **Is `pray` still a real verb?** → **Yes — `pray` (args `god`,`prayer`) is added to the shared
+  `action_schema.json`**, so it is validated, GDScript↔Python parity-checked, and available to agents
+  too (a cultist can pray to 外神); the *rich* player-facing adjudication lives in `PrayerService`.
+  *Alts (rejected):* a player-only prayer path with no schema verb (loses cross-language parity and
+  forecloses agent prayer).
+- **Are all gods mechanically symmetric?** → **No — asymmetric by design:** an opposing god's *Granted*
+  boon **impedes the descent** (`SummoningPlan.add_impede`), while the descending god's (外神) *Granted*
+  favor **feeds the gate** (raises `corruption` + `cult_readiness`). Praying to the evil god is a
+  Faustian bargain. *Alts (rejected):* every Granted gives the same boon (flattens the central tension
+  that the outer god's power is a trap).
+- **How is "the LLM decides" modeled deterministically now?** → **Explicit scoring the mock + a Python
+  reference share byte-for-byte:** respect/disrespect marker counts + domain-keyword hit + clamped
+  standing vs. fixed thresholds; the Fool (愚者) always answers in the *cryptic* register; any
+  disrespect always *punishes*. A `(outcome, severity)` parity test guards the two languages. Per-god
+  **standing** lives in `PrayerService` and persists via `SaveManager`. *Alts (rejected):* random /
+  weighted-roll outcomes (non-deterministic, untestable, no parity); deriving favor from existing
+  pressure vars (couples unrelated systems and isn't per-god).
