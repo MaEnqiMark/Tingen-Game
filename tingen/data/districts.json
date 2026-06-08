@@ -1,0 +1,37 @@
+[
+	{
+		"id": "iron_cross",
+		"name": "Iron Cross Street",
+		"base_risk": 0.45,
+		"risk_pressure": "corruption",
+		"polygon": [320, 200, 560, 200, 560, 380, 320, 380]
+	},
+	{
+		"id": "harbor",
+		"name": "The Harbor",
+		"base_risk": 0.30,
+		"risk_pressure": "cult_readiness",
+		"polygon": [80, 400, 360, 400, 360, 600, 80, 600]
+	},
+	{
+		"id": "st_selena",
+		"name": "St. Selena Cathedral",
+		"base_risk": 0.20,
+		"risk_pressure": "attention",
+		"polygon": [600, 160, 820, 160, 820, 340, 600, 340]
+	},
+	{
+		"id": "night_market",
+		"name": "Night Market",
+		"base_risk": 0.35,
+		"risk_pressure": "panic",
+		"polygon": [400, 420, 660, 420, 660, 600, 400, 600]
+	},
+	{
+		"id": "uptown",
+		"name": "Backlund Bridge Quarter",
+		"base_risk": 0.10,
+		"risk_pressure": "corruption",
+		"polygon": [700, 380, 900, 380, 900, 560, 700, 560]
+	}
+]

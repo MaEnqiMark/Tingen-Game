@@ -1,0 +1,44 @@
+[gd_scene load_steps=5 format=3 uid="uid://b1tngncity0001"]
+
+[ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="player"]
+[ext_resource type="PackedScene" path="res://scenes/Interactable.tscn" id="interactable"]
+[ext_resource type="PackedScene" path="res://scenes/NPC.tscn" id="npc"]
+[ext_resource type="Script" path="res://src/DayNightTint.gd" id="tint"]
+
+[node name="City" type="Node2D"]
+
+[node name="DayNight" type="CanvasModulate" parent="."]
+script = ExtResource("tint")
+
+[node name="Ground" type="Polygon2D" parent="."]
+color = Color(0.12, 0.13, 0.17, 1)
+polygon = PackedVector2Array(-200, -200, 1400, -200, 1400, 1000, -200, 1000)
+
+[node name="Cobbles" type="Polygon2D" parent="."]
+color = Color(0.18, 0.18, 0.22, 1)
+polygon = PackedVector2Array(120, 120, 1080, 120, 1080, 680, 120, 680)
+
+[node name="Title" type="Label" parent="."]
+offset_left = 360.0
+offset_top = 150.0
+offset_right = 840.0
+offset_bottom = 174.0
+horizontal_alignment = 1
+text = "Tingen - Iron Cross Street  [stub city scene]"
+
+[node name="Player" parent="." instance=ExtResource("player")]
+position = Vector2(600, 400)
+
+[node name="Nighthawk" parent="." instance=ExtResource("interactable")]
+position = Vector2(820, 320)
+prompt_text = "Speak to the Nighthawk"
+tint = Color(0.45, 0.55, 0.8, 1)
+dialogue_id = "nighthawk"
+
+[node name="Orin" parent="." instance=ExtResource("npc")]
+position = Vector2(400, 240)
+npc_id = "lamplighter_orin"
+
+[node name="Dalia" parent="." instance=ExtResource("npc")]
+position = Vector2(820, 220)
+npc_id = "fishwife_dalia"

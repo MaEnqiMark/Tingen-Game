@@ -1,0 +1,49 @@
+{
+	"nighthawk": {
+		"start": "root",
+		"nodes": {
+			"root": {
+				"speaker": "Nighthawk",
+				"text": "You there. You have the look of someone who woke up in the wrong life. Speak quickly — the fog has ears.",
+				"options": [
+					{ "label": "Who are you?", "goto": "who" },
+					{ "label": "Ask about the Nighthawks", "goto": "org" },
+					{ "label": "About this notebook...", "goto": "notebook", "requires_topic": "antigonus_notebook" },
+					{ "label": "That face in the mirror wasn't mine.", "goto": "mirror", "requires_topic": "the_transmigration", "contradiction": true },
+					{ "label": "(Leave)", "goto": "end" }
+				]
+			},
+			"who": {
+				"speaker": "Nighthawk",
+				"text": "A watchman of the dark. We hunt what the Church is too proud to admit walks these streets.",
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"org": {
+				"speaker": "Nighthawk",
+				"text": "The Nighthawks answer to no parish. The Church of Evernight already moves on the notebook — and on whoever carries it.",
+				"effects": [ { "type": "collect", "clue": "nighthawk_warning" } ],
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"notebook": {
+				"speaker": "Nighthawk",
+				"text": "So you HAVE seen it. Antigonus' notebook. Keep it hidden, or it will hollow you out and wear you like a coat.",
+				"effects": [ { "type": "pressure", "target": "attention", "delta": 8.0 } ],
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"mirror": {
+				"speaker": "Nighthawk",
+				"text": "Transmigration. The previous tenant didn't leave willingly. Whatever pulled you here wanted this body in the city — tonight.",
+				"effects": [ { "type": "lead", "text": "线索：查清这具身体的前主人 (Learn who wore this body before you)." } ],
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			}
+		}
+	}
+}

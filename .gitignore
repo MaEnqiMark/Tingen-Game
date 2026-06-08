@@ -1,0 +1,19 @@
+# OS / editor cruft
+.DS_Store
+*.log
+
+# Secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Generated asset output (large; regenerate via asset-gen scripts)
+asset-gen/out/
+asset-gen/out_image2/
+asset-gen/archive/
+
+# Godot save data (runtime, per-user)
+# (engine .godot/ is ignored by tingen/.gitignore)

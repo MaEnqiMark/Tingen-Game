@@ -1,0 +1,42 @@
+[
+	{
+		"id": "antigonus_notebook",
+		"name": "Antigonus' Notebook",
+		"description": "A leather notebook whose symbols seem to crawl when unobserved. Plainly a corrupting Beyonder artifact.",
+		"type": "occult",
+		"importance": "pivotal",
+		"location": "intro_room",
+		"topics": ["antigonus_notebook", "beyonder_artifacts"],
+		"linked_entities": ["nighthawk"]
+	},
+	{
+		"id": "spent_revolver",
+		"name": "Spent Revolver",
+		"description": "A service revolver, one chamber fired, the barrel still faintly warm.",
+		"type": "physical",
+		"importance": "supporting",
+		"location": "intro_room",
+		"topics": ["the_gunshot"],
+		"linked_entities": []
+	},
+	{
+		"id": "wrong_reflection",
+		"name": "The Wrong Reflection",
+		"description": "The face in the mirror is not the one you remember wearing. You woke in a stranger's life.",
+		"type": "behavioral",
+		"importance": "pivotal",
+		"location": "intro_room",
+		"topics": ["the_transmigration"],
+		"linked_entities": []
+	},
+	{
+		"id": "nighthawk_warning",
+		"name": "Nighthawk's Warning",
+		"description": "A Nighthawk admits the Church is already hunting the notebook — and you with it.",
+		"type": "testimony",
+		"importance": "supporting",
+		"location": "city",
+		"topics": ["the_nighthawks", "church_of_evernight"],
+		"linked_entities": ["nighthawk"]
+	}
+]

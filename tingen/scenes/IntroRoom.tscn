@@ -1,0 +1,137 @@
+[gd_scene load_steps=17 format=3 uid="uid://b1tngnintro001"]
+
+[ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="player"]
+[ext_resource type="PackedScene" path="res://scenes/Interactable.tscn" id="interactable"]
+[ext_resource type="TileSet" path="res://assets/wood_floor_tileset.tres" id="woodts"]
+[ext_resource type="Script" path="res://src/FloorTiler.gd" id="floortiler"]
+[ext_resource type="Texture2D" path="res://assets/props/antigonus_notebook_0.png" id="icon_notebook"]
+[ext_resource type="Texture2D" path="res://assets/props/revolver_0.png" id="icon_gun"]
+[ext_resource type="Texture2D" path="res://assets/props/cracked_mirror_0.png" id="icon_mirror"]
+[ext_resource type="Texture2D" path="res://assets/props/door_wood_0.png" id="icon_door"]
+[ext_resource type="PackedScene" path="res://scenes/Prop.tscn" id="prop"]
+[ext_resource type="Texture2D" path="res://assets/props/simple_bed_0.png" id="icon_bed"]
+[ext_resource type="Texture2D" path="res://assets/props/writing_desk_0.png" id="icon_desk"]
+[ext_resource type="Texture2D" path="res://assets/props/bookshelf_0.png" id="icon_bookshelf"]
+[ext_resource type="Texture2D" path="res://assets/props/oil_lamp_0.png" id="icon_lamp"]
+[ext_resource type="Texture2D" path="res://assets/props/candle_0.png" id="icon_candle"]
+
+[sub_resource type="RectangleShape2D" id="wall_h"]
+size = Vector2(896, 16)
+
+[sub_resource type="RectangleShape2D" id="wall_v"]
+size = Vector2(16, 560)
+
+[node name="IntroRoom" type="Node2D"]
+y_sort_enabled = true
+
+[node name="Background" type="Polygon2D" parent="."]
+color = Color(0.13, 0.13, 0.16, 1)
+polygon = PackedVector2Array(-20, -20, 916, -20, 916, 580, -20, 580)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+position = Vector2(0, 0)
+scale = Vector2(0.34, 0.34)
+y_sort_enabled = false
+tile_set = ExtResource("woodts")
+script = ExtResource("floortiler")
+
+[node name="Bloodstain" type="Polygon2D" parent="."]
+color = Color(0.32, 0.08, 0.09, 1)
+polygon = PackedVector2Array(412, 360, 484, 352, 500, 404, 440, 432, 396, 408)
+
+[node name="Walls" type="StaticBody2D" parent="."]
+
+[node name="Top" type="CollisionShape2D" parent="Walls"]
+position = Vector2(448, 8)
+shape = SubResource("wall_h")
+
+[node name="Bottom" type="CollisionShape2D" parent="Walls"]
+position = Vector2(448, 552)
+shape = SubResource("wall_h")
+
+[node name="Left" type="CollisionShape2D" parent="Walls"]
+position = Vector2(8, 280)
+shape = SubResource("wall_v")
+
+[node name="Right" type="CollisionShape2D" parent="Walls"]
+position = Vector2(888, 280)
+shape = SubResource("wall_v")
+
+[node name="Player" parent="." instance=ExtResource("player")]
+position = Vector2(448, 396)
+
+[node name="Notebook" parent="." instance=ExtResource("interactable")]
+position = Vector2(330, 300)
+thought = "这东西不对劲。 (This notebook is wrong. The symbols crawl when I look away.)"
+prompt_text = "Examine notebook"
+tint = Color(0.6, 0.4, 0.85, 1)
+clue_id = "antigonus_notebook"
+icon = ExtResource("icon_notebook")
+
+[node name="Gun" parent="." instance=ExtResource("interactable")]
+position = Vector2(560, 360)
+thought = "是我开的枪？ (Did I fire this? The barrel is still warm.)"
+prompt_text = "Examine revolver"
+tint = Color(0.7, 0.7, 0.74, 1)
+clue_id = "spent_revolver"
+icon = ExtResource("icon_gun")
+
+[node name="Mirror" parent="." instance=ExtResource("interactable")]
+position = Vector2(448, 150)
+thought = "这不是我。 (That is not my face in the glass.)"
+prompt_text = "Look in the mirror"
+tint = Color(0.5, 0.75, 0.85, 1)
+clue_id = "wrong_reflection"
+icon = ExtResource("icon_mirror")
+
+[node name="Door" parent="." instance=ExtResource("interactable")]
+position = Vector2(820, 280)
+prompt_text = "Open the door"
+tint = Color(0.7, 0.55, 0.4, 1)
+target_scene = "res://scenes/City.tscn"
+lead_on_use = "线索：寻找值夜者 (Find the Nighthawks)."
+icon = ExtResource("icon_door")
+icon_px = 96.0
+
+[node name="Bed" parent="." instance=ExtResource("prop")]
+position = Vector2(140, 180)
+icon = ExtResource("icon_bed")
+icon_px = 150.0
+solid = true
+footprint = Vector2(120, 36)
+
+[node name="Desk" parent="." instance=ExtResource("prop")]
+position = Vector2(700, 200)
+icon = ExtResource("icon_desk")
+icon_px = 120.0
+solid = true
+footprint = Vector2(96, 28)
+
+[node name="Bookshelf" parent="." instance=ExtResource("prop")]
+position = Vector2(450, 90)
+icon = ExtResource("icon_bookshelf")
+icon_px = 150.0
+solid = true
+footprint = Vector2(110, 24)
+
+[node name="Lamp" parent="." instance=ExtResource("prop")]
+position = Vector2(700, 165)
+icon = ExtResource("icon_lamp")
+icon_px = 70.0
+solid = false
+footprint = Vector2(20, 8)
+
+[node name="Candle" parent="." instance=ExtResource("prop")]
+position = Vector2(330, 250)
+icon = ExtResource("icon_candle")
+icon_px = 44.0
+solid = false
+footprint = Vector2(12, 6)
+
+[node name="Hint" type="Label" parent="."]
+offset_left = 300.0
+offset_top = 24.0
+offset_right = 600.0
+offset_bottom = 44.0
+horizontal_alignment = 1
+text = "WASD / Arrows to move   .   E to examine   .   Tab for notebook"
