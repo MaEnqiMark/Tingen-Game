@@ -44,6 +44,7 @@ func _init() -> void:
 	_test_critic_verdicts()
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
+	_test_summoning_countdown_and_climax()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -573,6 +574,34 @@ func _test_summoning_plan() -> void:
 	# Strength is clamped to a floor.
 	SP.add_impede(1000.0, "overkill")
 	_ok(SP.manifestation_strength() >= SP.MIN_STRENGTH, "strength never drops below the floor")
+
+func _test_summoning_countdown_and_climax() -> void:
+	print("[summoning countdown]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	SP.reset()
+	SP.countdown_beats = 3
+	var fired: Array = []
+	var cb := func(strength: float): fired.append(strength)
+	SP.summoning_climax.connect(cb)
+	EB.clear()
+	SP.tick_countdown()
+	_ok(SP.countdown_beats == 2, "tick decrements 3 -> 2")
+	_ok(fired.is_empty(), "no climax before zero")
+	SP.tick_countdown()
+	SP.tick_countdown()
+	_ok(SP.countdown_beats == 0, "reaches zero")
+	_ok(fired.size() == 1, "climax fires exactly once")
+	_ok(is_equal_approx(fired[0], SP.manifestation_strength()), "climax strength == manifestation_strength()")
+	_ok(SP.climax_fired, "climax_fired latched true")
+	var saw := false
+	for e in EB.events("summoning_climax"):
+		saw = true
+	_ok(saw, "summoning_climax event logged")
+	SP.tick_countdown()
+	_ok(fired.size() == 1, "does not re-fire after climax")
+	SP.summoning_climax.disconnect(cb)
+	SP.reset()
 
 func _test_occult_divination() -> void:
 	print("[occult divination]")

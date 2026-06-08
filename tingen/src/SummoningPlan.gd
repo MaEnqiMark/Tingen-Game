@@ -9,6 +9,11 @@ const BASE_STRENGTH: float = 100.0
 const MIN_STRENGTH: float = 8.0
 const COUNTDOWN_SETBACK_PER_INGREDIENT: int = 3
 
+signal countdown_changed(beats_left: int)
+signal summoning_climax(strength: float)
+
+var climax_fired: bool = false
+
 ## Default countdown to the summoning, in beats.
 var countdown_beats: int = 40
 var impede_score: float = 0.0
@@ -17,7 +22,27 @@ var ingredients: Dictionary = {"ritual_salt": 3, "consecrated_chalk": 2, "candle
 
 var _initial_total: int = 8   # sum of starting ingredients, for the strength fraction
 
+func _ready() -> void:
+	Clock.beat_ticked.connect(_on_beat)
+
+func _on_beat(_beat_index: int, _day: int) -> void:
+	tick_countdown()
+
+## Advance the doomsday clock by one beat. At zero, fire the climax exactly once.
+func tick_countdown() -> void:
+	if climax_fired:
+		return
+	if countdown_beats > 0:
+		countdown_beats -= 1
+		countdown_changed.emit(countdown_beats)
+	if countdown_beats <= 0:
+		climax_fired = true
+		var strength := manifestation_strength()
+		summoning_climax.emit(strength)
+		EventBus.emit_event("summoning_climax", {"strength": strength})
+
 func reset() -> void:
+	climax_fired = false
 	countdown_beats = 40
 	impede_score = 0.0
 	ingredients = {"ritual_salt": 3, "consecrated_chalk": 2, "candle": 3}
@@ -58,6 +83,7 @@ func to_dict() -> Dictionary:
 		"impede_score": impede_score,
 		"ingredients": ingredients.duplicate(true),
 		"initial_total": _initial_total,
+		"climax_fired": climax_fired,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -65,3 +91,4 @@ func from_dict(d: Dictionary) -> void:
 	impede_score = float(d.get("impede_score", 0.0))
 	ingredients = (d.get("ingredients", {}) as Dictionary).duplicate(true)
 	_initial_total = int(d.get("initial_total", _total_ingredients()))
+	climax_fired = bool(d.get("climax_fired", false))
