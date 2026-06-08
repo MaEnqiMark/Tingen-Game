@@ -42,6 +42,7 @@ func _init() -> void:
 	_test_overseer_state()
 	_test_critic_verdicts()
 	_test_runtime_with_overseer()
+	_test_summoning_plan()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -534,3 +535,26 @@ func _test_runtime_with_overseer() -> void:
 	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "report", "args": {"to": "nighthawks", "info": "the cult meets at the warehouse"}})
 	ART.run_beat()
 	_ok(EB.events("agent_action").size() == 1, "report committed once the player is involved")
+
+func _test_summoning_plan() -> void:
+	print("[summoning plan]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	SP.reset()
+	var base: float = SP.manifestation_strength()
+	# Impede weakens the manifestation.
+	SP.add_impede(20.0, "test")
+	_ok(SP.manifestation_strength() < base, "impede lowers manifestation strength")
+	_ok(SP.impede_score == 20.0, "impede accumulates")
+	# Removing an ingredient weakens it further AND sets back the countdown.
+	var cd_before: int = SP.countdown_beats
+	var strength_before: float = SP.manifestation_strength()
+	_ok(SP.remove_ingredient("ritual_salt", 1), "ritual_salt removed from cult stock")
+	_ok(SP.manifestation_strength() < strength_before, "fewer ingredients -> weaker")
+	_ok(SP.countdown_beats > cd_before, "removing an ingredient sets back the countdown")
+	# Removing more than held fails and changes nothing.
+	var cd_now: int = SP.countdown_beats
+	_ok(SP.remove_ingredient("ritual_salt", 999) == false, "cannot remove more than held")
+	_ok(SP.countdown_beats == cd_now, "failed removal does not set back the countdown")
+	# Strength is clamped to a floor.
+	SP.add_impede(1000.0, "overkill")
+	_ok(SP.manifestation_strength() >= SP.MIN_STRENGTH, "strength never drops below the floor")
