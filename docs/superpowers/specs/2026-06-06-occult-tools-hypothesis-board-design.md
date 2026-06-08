@@ -1,3 +1,11 @@
+> **SUPERSEDED IN PART (2026-06-08):** the game pivoted to an open-world LLM agent-sim (see
+> `2026-06-08-tingen-agent-sim-vertical-slice-design.md` and GDD §0.1). The **Gray-Fog
+> Hypothesis Board / detective-deduction parts of this spec are CUT.** The **occult *tools***
+> (the OOP `OccultTool` hierarchy + `OccultToolManager` + `OccultRisk`, §2 and §5) **survive,
+> demoted to player *perception* verbs** that yield directional leads about agents/site. Read
+> the tool sections as current; treat the board/inference sections (§3, §6, board parts of §7)
+> as historical.
+
 # Occult Tools + Gray-Fog Hypothesis Board — Design Spec
 
 **Date:** 2026-06-06 (architecture revised 2026-06-08)

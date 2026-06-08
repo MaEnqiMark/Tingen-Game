@@ -285,3 +285,52 @@ chosen option + brief description of the alternatives.)
   ingredients + place/time conditions) → effect. *Only the ingredient slots are built now; the
   ritual engine is deferred.* *Alts (rejected):* model each act as a bespoke mechanic (no shared
   ritual abstraction, more code, inconsistent).
+
+## Decision log — Core game pivot to open-world LLM agent-sim (2026-06-08)
+
+This pivot supersedes the detective-mystery framing. See
+`docs/superpowers/specs/2026-06-08-tingen-agent-sim-vertical-slice-design.md` and the GDD
+direction update (§0.1).
+
+- **Genre / core loop?** → **Open-world, real-time immersive simulation with an AI-managed
+  story** — not a fixed detective mystery. The cult genuinely intends to summon a descending
+  evil god and completes it if unopposed; the story is steered, not scripted. *Alts (rejected):*
+  keep the fixed-mystery detective game (no emergence, on-rails); pure sandbox with no story
+  management (incoherent, no dramatic arc).
+- **NPC intelligence?** → **Each NPC is an autonomous LLM agent** (intent + memory + plans) that
+  perceives and interacts with other agents; a cheap schedule-based **fallback behavior** runs
+  while it deliberates. *Alts (rejected):* the original heuristic "60-second strategic refresh"
+  (not emergent enough); a single LLM puppeteering all NPCs (loses per-agent identity, harder to
+  reason about).
+- **Story management?** → **A World-AI overseer + critic.** Director can re-task an agent, cancel
+  a plan, or coordinate a group beat, and enforces invariants (e.g. *cult never exposed/caught by
+  chance — exposure gated on player involvement*). Critic **catches and kills** boring/incoherent/
+  illegal proposed actions (legality + coherence + interestingness). *Alts (rejected):* heuristic
+  storyteller only (less surprising); LLM director with no critic (boring/faulty sims slip
+  through).
+- **Build approach?** → **Vertical slice first** (~3–5 agents, Iron Cross Street, one summoning
+  thread, end to end), then scale to the city. *Alts (rejected):* design the full city
+  architecture first (slow to playable, over-specifies); substrate + overseer with stubbed agents
+  first (delays seeing the emergent magic).
+- **Time model?** → **Real-time immersive sim**; agents deliberate **async in the background** on
+  a beat cadence (or on events), with fallback behaviors hiding latency. *Alts (rejected):*
+  beat/turn-based (easier latency/testing but board-game feel); hybrid real-time + pause-for-beats
+  (two time modes, seams).
+- **Resolution paths?** → **Multi-path with combat as the climax:** investigate → sabotage / turn
+  the waverer / fight; accumulated **impede** scales climax difficulty. *Alts (rejected):*
+  combat-first (thin vs. the agent sim); combat as failure-state only (contradicts "combat is
+  important").
+- **LLM orchestration?** → **External Python sidecar** (HTTP/stdio); owns prompts, Claude API
+  calls, batching, caching, schema validation; API keys + nondeterminism quarantined there; tests
+  mock it. *Alts (rejected):* in-engine GDScript HTTPRequest (clumsy orchestration, keys/nondet in
+  engine); defer the choice (leaves a load-bearing decision open).
+- **Slice cast?** → **Reuse existing roster + slot candidates** (Clerk Voss leader, Dalia
+  logistics, Orin scout/waverer, Dockhand Pell victim), extending `npcs.json` with intents. *Alts
+  (rejected):* author a fresh dedicated cast (diverges from existing data, more content).
+- **Gray-Fog Hypothesis Board?** → **Cut.** Detective deduction doesn't fit an emergent sim;
+  occult tools instead give **directional perception leads**. *Alts (rejected):* keep the board
+  (re-introduces fixed-mystery deduction).
+- **Occult tools + inventory specs?** → **Survive, demoted** to player **perception** (occult
+  tools) and **action/economy** (inventory ingredients power sabotage). The OOP `OccultTool`
+  hierarchy + manager + `OccultRisk` and the inventory foundation still apply. *Alts (rejected):*
+  scrap them (lose the LotM-flavored verbs + the sabotage economy).
