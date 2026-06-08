@@ -30,6 +30,7 @@ func _init() -> void:
 	_test_cult_cell_seeded()
 	_test_substrate_save_load()
 	_test_item_db()
+	_test_inventory_add_remove()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -223,3 +224,20 @@ func _test_item_db() -> void:
 	var pen: ItemDef = DB.get_def("spirit_pendulum")
 	_ok(pen.stackable == false, "spirit_pendulum is not stackable")
 	_ok(DB.get_def("does_not_exist") == null, "unknown id returns null")
+
+func _test_inventory_add_remove() -> void:
+	print("[inventory add/remove]")
+	var INV: Object = root.get_node("/root/Inventory")
+	INV.clear()
+	_ok(INV.add("candle", 3), "add 3 candles succeeds")
+	_ok(INV.count_of("candle") == 3, "count is 3")
+	_ok(INV.add("candle", 100) == false, "add past max_stack (9) is rejected")
+	_ok(INV.count_of("candle") == 3, "count unchanged after rejected add")
+	_ok(INV.add("spirit_pendulum"), "add non-stackable succeeds")
+	_ok(INV.add("spirit_pendulum") == false, "second non-stackable add rejected (cap 1)")
+	_ok(INV.has("candle", 3), "has(candle,3) true")
+	_ok(INV.has("candle", 4) == false, "has(candle,4) false")
+	_ok(INV.remove("candle", 2), "remove 2 candles succeeds")
+	_ok(INV.count_of("candle") == 1, "count is 1 after remove")
+	_ok(INV.remove("candle", 5) == false, "remove more than held is rejected")
+	_ok(INV.count_of("candle") == 1, "count unchanged after rejected remove")
