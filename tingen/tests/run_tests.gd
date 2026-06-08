@@ -584,10 +584,14 @@ func _test_summoning_countdown_and_climax() -> void:
 	var fired: Array = []
 	var cb := func(strength: float): fired.append(strength)
 	SP.summoning_climax.connect(cb)
+	var beats_reported: Array = []
+	var cc := func(n: int): beats_reported.append(n)
+	SP.countdown_changed.connect(cc)
 	EB.clear()
 	SP.tick_countdown()
 	_ok(SP.countdown_beats == 2, "tick decrements 3 -> 2")
 	_ok(fired.is_empty(), "no climax before zero")
+	_ok(beats_reported == [2], "countdown_changed emits new beats_left")
 	SP.tick_countdown()
 	SP.tick_countdown()
 	_ok(SP.countdown_beats == 0, "reaches zero")
@@ -600,7 +604,9 @@ func _test_summoning_countdown_and_climax() -> void:
 	_ok(saw, "summoning_climax event logged")
 	SP.tick_countdown()
 	_ok(fired.size() == 1, "does not re-fire after climax")
+	_ok(beats_reported == [2, 1, 0], "countdown_changed fired only on real decrements, not on the zero/climax tick")
 	SP.summoning_climax.disconnect(cb)
+	SP.countdown_changed.disconnect(cc)
 	SP.reset()
 
 func _test_occult_divination() -> void:

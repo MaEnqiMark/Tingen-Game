@@ -25,6 +25,7 @@ var _initial_total: int = 8   # sum of starting ingredients, for the strength fr
 func _ready() -> void:
 	Clock.beat_ticked.connect(_on_beat)
 
+# _beat_index/_day intentionally unused: every beat advances the doomsday clock equally.
 func _on_beat(_beat_index: int, _day: int) -> void:
 	tick_countdown()
 
