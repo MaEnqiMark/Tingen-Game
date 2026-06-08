@@ -329,7 +329,19 @@ direction update (§0.1).
   (rejected):* author a fresh dedicated cast (diverges from existing data, more content).
 - **Gray-Fog Hypothesis Board?** → **Cut.** Detective deduction doesn't fit an emergent sim;
   occult tools instead give **directional perception leads**. *Alts (rejected):* keep the board
-  (re-introduces fixed-mystery deduction).
+  (re-introduces fixed-mystery deduction). **NOTE — naming:** cutting this *board* does NOT
+  remove **Gray Fog (灰雾) the world concept**, which is retained as lore. Canonical uses (for the
+  deferred 上灰雾 / gray-fog-transit ritual): (1) above-the-gray-fog = the Tarot Club (塔罗会)
+  meeting space / Fool's domain, entered by ritual, members shown only as identity-concealed
+  outlines; (2) anti-divination shield + amplifier of one's own divination + shielding from
+  High-Sequence Beyonders/deities; (3) object storage + send/receive relay; (4) information &
+  Beyonder-ingredient/artifact exchange. In the slice this is **atmosphere only**, not a built
+  mechanic.
+- **Occult tools usable in combat + investigation?** → **Yes.** Tools are general-purpose verbs:
+  perception/knowing information (divination/spirit-vision/dream → directional leads) AND combat
+  (≥1 occult ability usable in the climax fight, more can extend the `OccultTool` hierarchy) AND
+  feeding sabotage/social decisions. *Alts (rejected):* investigation-only tools (wastes the
+  combat-relevant Seer abilities).
 - **Occult tools + inventory specs?** → **Survive, demoted** to player **perception** (occult
   tools) and **action/economy** (inventory ingredients power sabotage). The OOP `OccultTool`
   hierarchy + manager + `OccultRisk` and the inventory foundation still apply. *Alts (rejected):*
