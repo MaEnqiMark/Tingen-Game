@@ -27,6 +27,7 @@ func _init() -> void:
 	_test_event_bus()
 	_test_agent_fallback()
 	_test_agent_registry()
+	_test_cult_cell_seeded()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -180,3 +181,12 @@ func _test_agent_registry() -> void:
 	_ok(near.has(orin), "active() finds an agent at its own position")
 	var far: Array = AG.active(orin.position + Vector2(99999, 0), 1.0)
 	_ok(not far.has(orin), "active() excludes agents outside the radius")
+
+func _test_cult_cell_seeded() -> void:
+	print("[cult cell]")
+	var ND: Object = root.get_node("/root/NpcDB")
+	_ok(ND.get_def("clerk_voss").get("faction", "") == "cult", "voss is faction cult")
+	_ok(ND.get_def("clerk_voss").get("role", "") == "leader", "voss is the leader")
+	_ok(ND.get_def("dockhand_pell").get("role", "") == "victim", "pell is the victim")
+	_ok(String(ND.get_def("lamplighter_orin").get("intent", "")) != "", "orin has an intent")
+	_ok(String(ND.get_def("fishwife_dalia").get("role", "")) == "logistics", "dalia is logistics")
