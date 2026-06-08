@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_agent_fallback()
 	_test_agent_registry()
 	_test_cult_cell_seeded()
+	_test_substrate_save_load()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -190,3 +191,21 @@ func _test_cult_cell_seeded() -> void:
 	_ok(ND.get_def("dockhand_pell").get("role", "") == "victim", "pell is the victim")
 	_ok(String(ND.get_def("lamplighter_orin").get("intent", "")) != "", "orin has an intent")
 	_ok(String(ND.get_def("fishwife_dalia").get("role", "")) == "logistics", "dalia is logistics")
+
+func _test_substrate_save_load() -> void:
+	print("[substrate save/load]")
+	var EB: Object = root.get_node("/root/EventBus")
+	var AG: Object = root.get_node("/root/Agents")
+	var SM: Object = root.get_node("/root/SaveManager")
+	AG.rebuild()
+	EB.clear()
+	EB.emit_event("seed_event", {"x": 1})
+	AG.get_agent("clerk_voss").position = Vector2(123, 456)
+	var tmp := "user://test_substrate.json"
+	_ok(SM.save_game(tmp), "save_game writes file")
+	EB.clear()
+	AG.get_agent("clerk_voss").position = Vector2.ZERO
+	_ok(SM.load_game(tmp), "load_game reads file")
+	_ok(EB.events("seed_event").size() == 1, "event log restored after load")
+	_ok(AG.get_agent("clerk_voss").position == Vector2(123, 456), "agent position restored")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))

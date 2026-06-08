@@ -27,6 +27,8 @@ func save_game(path: String = SAVE_PATH) -> bool:
 		"clock": Clock.to_dict(),
 		"world_manager": WorldManager.to_dict(),
 		"clues": ClueDB.to_dict(),
+		"event_bus": EventBus.to_dict(),
+		"agents": Agents.to_dict(),
 		"scene_path": gc.current_scene_path if gc else "",
 		"player_pos": _vec_to_arr(gc.player_position() if gc else Vector2.ZERO),
 	}
@@ -54,6 +56,8 @@ func load_game(path: String = SAVE_PATH) -> bool:
 	ClueDB.from_dict(data.get("clues", {}))
 	Clock.from_dict(data.get("clock", {}))
 	WorldState.from_dict(data.get("world_state", {}))
+	EventBus.from_dict(data.get("event_bus", {}))
+	Agents.from_dict(data.get("agents", {}))
 
 	var gc := _game_controller()
 	var scene_path := String(data.get("scene_path", ""))
