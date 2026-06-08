@@ -35,6 +35,7 @@ func _init() -> void:
 	_test_inventory_save_load()
 	_test_action_schema()
 	_test_mock_sidecar()
+	_test_sidecar_bridge()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -311,3 +312,16 @@ func _test_mock_sidecar() -> void:
 	_ok(out2[0]["verb"] == "hide", "queued action consumed")
 	var out3: Array = mock.propose([{"agent_id": "orin"}])
 	_ok(out3[0]["verb"] == "idle", "empty queue falls back to idle")
+
+func _test_sidecar_bridge() -> void:
+	print("[sidecar bridge]")
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	_ok(SB.client != null, "bridge has a default client")
+	var mock := MockSidecar.new()
+	mock.set_action("voss", {"actor": "voss", "verb": "attack", "args": {"target": "pell"}})
+	SB.set_client(mock)
+	var out: Array = SB.propose([{"agent_id": "voss"}])
+	_ok(out.size() == 1, "bridge routes one proposal")
+	_ok(out[0]["verb"] == "attack", "bridge returns the active client's proposal")
+	# Every proposal the bridge returns must be schema-valid for the mock to be useful.
+	_ok(ActionSchema.validate(out[0])["ok"], "bridged proposal is schema-valid")
