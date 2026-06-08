@@ -33,6 +33,7 @@ func _init() -> void:
 	_test_inventory_add_remove()
 	_test_inventory_use()
 	_test_inventory_save_load()
+	_test_action_schema()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -277,3 +278,18 @@ func _test_inventory_save_load() -> void:
 	_ok(INV.count_of("candle") == 4, "candle count restored")
 	_ok(INV.has("spirit_pendulum"), "pendulum restored")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+
+func _test_action_schema() -> void:
+	print("[action schema]")
+	var ok := ActionSchema.validate({"actor": "voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	_ok(ok["ok"] == true, "valid move_to accepted")
+	var no_verb := ActionSchema.validate({"actor": "voss", "verb": "teleport", "args": {}})
+	_ok(no_verb["ok"] == false, "unknown verb rejected")
+	var missing := ActionSchema.validate({"actor": "voss", "verb": "talk_to", "args": {"agent": "orin"}})
+	_ok(missing["ok"] == false, "talk_to missing 'topic' rejected")
+	var idle := ActionSchema.validate({"actor": "voss", "verb": "idle", "args": {}})
+	_ok(idle["ok"] == true, "idle needs no args")
+	var no_actor := ActionSchema.validate({"verb": "idle", "args": {}})
+	_ok(no_actor["ok"] == false, "missing actor rejected")
+	_ok(ActionSchema.is_verb("attack"), "attack is a known verb")
+	_ok(not ActionSchema.is_verb("nope"), "nope is not a known verb")
