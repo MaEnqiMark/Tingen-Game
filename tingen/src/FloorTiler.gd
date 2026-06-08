@@ -9,6 +9,9 @@ extends TileMapLayer
 @export var atlas_coords: Vector2i = Vector2i.ZERO
 
 func _ready() -> void:
+	if tile_set == null:
+		push_warning("FloorTiler on '%s' has no tile_set; floor will be empty." % name)
+		return
 	for y in rows:
 		for x in cols:
 			set_cell(Vector2i(x, y), source_id, atlas_coords)

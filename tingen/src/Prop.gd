@@ -22,5 +22,4 @@ func _ready() -> void:
 	rect.size = footprint
 	_shape.shape = rect
 	_shape.disabled = not solid
-	if not solid:
-		set_collision_layer_value(1, false)
+	set_collision_layer_value(1, solid)
