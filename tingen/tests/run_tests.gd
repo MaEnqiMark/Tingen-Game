@@ -32,6 +32,7 @@ func _init() -> void:
 	_test_item_db()
 	_test_inventory_add_remove()
 	_test_inventory_use()
+	_test_inventory_save_load()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -260,3 +261,19 @@ func _test_inventory_use() -> void:
 	# Unknown effect: warns, no-ops, still treated as used (not consumed by default).
 	INV.clear()
 	_ok(INV.use("candle") == false, "use of unheld item returns false")
+
+func _test_inventory_save_load() -> void:
+	print("[inventory save/load]")
+	var INV: Object = root.get_node("/root/Inventory")
+	var SM: Object = root.get_node("/root/SaveManager")
+	INV.clear()
+	INV.add("candle", 4)
+	INV.add("spirit_pendulum")
+	var tmp := "user://test_inventory.json"
+	_ok(SM.save_game(tmp), "save_game writes file")
+	INV.clear()
+	_ok(INV.count_of("candle") == 0, "inventory cleared before load")
+	_ok(SM.load_game(tmp), "load_game reads file")
+	_ok(INV.count_of("candle") == 4, "candle count restored")
+	_ok(INV.has("spirit_pendulum"), "pendulum restored")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
