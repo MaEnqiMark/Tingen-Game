@@ -34,6 +34,7 @@ func _init() -> void:
 	_test_inventory_use()
 	_test_inventory_save_load()
 	_test_action_schema()
+	_test_mock_sidecar()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -293,3 +294,20 @@ func _test_action_schema() -> void:
 	_ok(no_actor["ok"] == false, "missing actor rejected")
 	_ok(ActionSchema.is_verb("attack"), "attack is a known verb")
 	_ok(not ActionSchema.is_verb("nope"), "nope is not a known verb")
+
+func _test_mock_sidecar() -> void:
+	print("[mock sidecar]")
+	var mock := MockSidecar.new()
+	mock.set_action("voss", {"actor": "voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	var snaps := [{"agent_id": "voss"}, {"agent_id": "orin"}]
+	var out: Array = mock.propose(snaps)
+	_ok(out.size() == 2, "one proposal per snapshot")
+	_ok(out[0]["verb"] == "move_to", "scripted action returned for voss")
+	_ok(out[1]["verb"] == "idle", "unscripted agent defaults to idle")
+	_ok(out[1]["actor"] == "orin", "idle proposal is attributed to the right actor")
+	# Queue support: pop one action per beat.
+	mock.set_action("orin", [{"actor": "orin", "verb": "hide", "args": {}}])
+	var out2: Array = mock.propose([{"agent_id": "orin"}])
+	_ok(out2[0]["verb"] == "hide", "queued action consumed")
+	var out3: Array = mock.propose([{"agent_id": "orin"}])
+	_ok(out3[0]["verb"] == "idle", "empty queue falls back to idle")
