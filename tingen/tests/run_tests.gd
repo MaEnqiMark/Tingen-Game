@@ -39,6 +39,7 @@ func _init() -> void:
 	_test_perception_snapshot()
 	_test_action_commit()
 	_test_agent_runtime_beat()
+	_test_overseer_state()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -416,3 +417,26 @@ func _test_agent_runtime_beat() -> void:
 	var pos_idle: Vector2 = voss.position
 	ART.run_beat()
 	_ok(voss.position == pos_idle, "idle proposal leaves the agent in place")
+
+func _test_overseer_state() -> void:
+	print("[overseer]")
+	var OV: Object = root.get_node("/root/Overseer")
+	var EB: Object = root.get_node("/root/EventBus")
+	OV.reset()
+	# Directives: one-shot, keyed by agent.
+	OV.issue_directive("clerk_voss", {"actor": "clerk_voss", "verb": "hide", "args": {}})
+	_ok(OV.has_directive("clerk_voss"), "directive queued")
+	var d: Dictionary = OV.take_directive("clerk_voss")
+	_ok(d.get("verb", "") == "hide", "directive returned")
+	_ok(not OV.has_directive("clerk_voss"), "directive is one-shot")
+	_ok(OV.take_directive("nobody").is_empty(), "no directive returns empty dict")
+	# Coordinate: issue the same directive to several agents.
+	OV.coordinate(["fishwife_dalia", "lamplighter_orin"], {"verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	_ok(OV.has_directive("fishwife_dalia"), "coordinate queues for agent 1")
+	_ok(OV.has_directive("lamplighter_orin"), "coordinate queues for agent 2")
+	_ok(OV.take_directive("fishwife_dalia").get("actor", "") == "fishwife_dalia", "coordinate sets actor per agent")
+	# Player involvement is initially false, flips on a player_ event.
+	OV.reset()
+	_ok(OV.allows_exposure() == false, "exposure disallowed until player is involved")
+	EB.emit_event("player_sabotage", {"actor": "player", "item": "ritual_salt"})
+	_ok(OV.allows_exposure() == true, "a player_ event marks the player involved")

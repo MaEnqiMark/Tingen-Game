@@ -28,6 +28,7 @@ EventBus="*res://src/EventBus.gd"
 Agents="*res://src/AgentRegistry.gd"
 SidecarBridge="*res://src/SidecarBridge.gd"
 AgentRuntime="*res://src/AgentRuntime.gd"
+Overseer="*res://src/Overseer.gd"
 EventManager="*res://src/EventManager.gd"
 DialogueManager="*res://src/DialogueManager.gd"
 SaveManager="*res://src/SaveManager.gd"
@@ -93,5 +94,5 @@ toggle_console={
 
 [rendering]
 
-rendering_device/driver.windows="d3d12"
 textures/canvas_textures/default_texture_filter=0
+rendering_device/driver.windows="d3d12"
