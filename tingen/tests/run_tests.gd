@@ -46,6 +46,7 @@ func _init() -> void:
 	_test_summoning_plan()
 	_test_summoning_countdown_and_climax()
 	await _test_npc_binds_to_agent()
+	await _test_live_district_wiring()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -630,6 +631,24 @@ func _test_npc_binds_to_agent() -> void:
 	_ok(not loose.is_bound(), "unknown id is not bound (schedule fallback)")
 	npc.queue_free()
 	loose.queue_free()
+	await process_frame
+
+func _test_live_district_wiring() -> void:
+	print("[live district]")
+	var Ag: Object = root.get_node("/root/Agents")
+	var AR: Object = root.get_node("/root/AgentRuntime")
+	Ag.rebuild()
+	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	await process_frame
+	var npc_count := 0
+	for c in scene.get_children():
+		if c.is_in_group("npc"):
+			npc_count += 1
+	_ok(npc_count == Ag.all().size(), "spawns one NPC per registry agent")
+	_ok(AR.player_position == scene.player_start, "runtime player_position fed from the live player")
+	scene.queue_free()
 	await process_frame
 
 func _test_occult_divination() -> void:
