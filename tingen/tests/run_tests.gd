@@ -41,6 +41,7 @@ func _init() -> void:
 	_test_agent_runtime_beat()
 	_test_overseer_state()
 	_test_critic_verdicts()
+	_test_runtime_with_overseer()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -470,3 +471,66 @@ func _test_critic_verdicts() -> void:
 	# Ordinary move is always fine.
 	_ok(Critic.review({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)["verdict"] == "approve",
 		"ordinary move approved")
+
+func _test_runtime_with_overseer() -> void:
+	print("[runtime + overseer]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	var OV: Object = root.get_node("/root/Overseer")
+	var ART: Object = root.get_node("/root/AgentRuntime")
+	AG.rebuild()
+	OV.reset()
+	var voss: Agent = AG.get_agent("clerk_voss")
+	voss.position = Vector2(400, 300)
+	ART.player_position = Vector2(400, 300)
+	ART.active_radius = 50.0
+
+	# 1) Critic veto: turned waverer proposing a ritual step -> vetoed -> no commit.
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	orin.faction = "ally"
+	orin.position = Vector2(400, 300)   # make orin active too
+	var mock := MockSidecar.new()
+	mock.set_action("lamplighter_orin", {"actor": "lamplighter_orin", "verb": "perform_ritual_step", "args": {"step": "x"}})
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "idle", "args": {}})
+	SB.set_client(mock)
+	EB.clear()
+	ART.run_beat()
+	_ok(EB.events("action_vetoed").size() >= 1, "incoherent action is vetoed")
+	var ritual_actions: Array = EB.events("agent_action").filter(func(e): return e["data"]["verb"] == "perform_ritual_step")
+	_ok(ritual_actions.size() == 0, "vetoed ritual step is never committed")
+
+	# 2) Overseer directive overrides the agent's own proposal.
+	AG.rebuild(); OV.reset()
+	var voss2: Agent = AG.get_agent("clerk_voss")
+	voss2.position = Vector2(800, 800)              # far from player -> not active
+	ART.player_position = Vector2(0, 0)
+	ART.active_radius = 10.0
+	var before: Vector2 = voss2.position
+	OV.issue_directive("clerk_voss", {"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	EB.clear()
+	ART.run_beat()
+	_ok(EB.events("overseer_directive").size() == 1, "directive committed even for an inactive agent")
+	_ok(voss2.position != before, "directed agent moved per the directive")
+
+	# 3) End-to-end exposure invariant: exposing report blocked, then allowed.
+	AG.rebuild(); OV.reset()
+	var voss3: Agent = AG.get_agent("clerk_voss")
+	voss3.position = Vector2(0, 0)
+	ART.player_position = Vector2(0, 0)
+	ART.active_radius = 50.0
+	mock.clear()
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "report", "args": {"to": "nighthawks", "info": "the cult meets at the warehouse"}})
+	# make only voss active: move others away
+	for a in AG.all():
+		if a.id != "clerk_voss":
+			a.position = Vector2(9000, 9000)
+	EB.clear()
+	ART.run_beat()
+	_ok(EB.events("action_vetoed").size() == 1, "exposing report vetoed without player involvement")
+	# Player gets involved, then the same report is allowed.
+	EB.emit_event("player_investigate", {"actor": "player"})
+	EB.clear()
+	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "report", "args": {"to": "nighthawks", "info": "the cult meets at the warehouse"}})
+	ART.run_beat()
+	_ok(EB.events("agent_action").size() == 1, "report committed once the player is involved")
