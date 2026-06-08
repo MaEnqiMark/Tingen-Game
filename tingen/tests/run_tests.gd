@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_substrate_save_load()
 	_test_item_db()
 	_test_inventory_add_remove()
+	_test_inventory_use()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -241,3 +242,21 @@ func _test_inventory_add_remove() -> void:
 	_ok(INV.count_of("candle") == 1, "count is 1 after remove")
 	_ok(INV.remove("candle", 5) == false, "remove more than held is rejected")
 	_ok(INV.count_of("candle") == 1, "count unchanged after rejected remove")
+
+func _test_inventory_use() -> void:
+	print("[inventory use]")
+	var INV: Object = root.get_node("/root/Inventory")
+	var WS: Object = root.get_node("/root/WorldState")
+	INV.clear()
+	WS.set_pressure(&"fatigue", 50.0)
+	INV.add("rye_bread", 2)
+	_ok(INV.use("rye_bread"), "use rye_bread succeeds")
+	_ok(abs(WS.get_pressure(&"fatigue") - 38.0) < 0.01, "fatigue dropped by on_use delta (12)")
+	_ok(INV.count_of("rye_bread") == 1, "consumable decremented by 1")
+	# Non-consumable (no on_use): use does not decrement.
+	INV.add("spirit_pendulum")
+	_ok(INV.use("spirit_pendulum"), "use non-consumable returns true")
+	_ok(INV.count_of("spirit_pendulum") == 1, "non-consumable not decremented")
+	# Unknown effect: warns, no-ops, still treated as used (not consumed by default).
+	INV.clear()
+	_ok(INV.use("candle") == false, "use of unheld item returns false")

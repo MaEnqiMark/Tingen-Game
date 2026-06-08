@@ -50,6 +50,32 @@ func remove(item_id: String, count: int = 1) -> bool:
 	item_removed.emit(item_id, count)
 	return true
 
+## Use one of an item. Applies its declarative `on_use` effect (if any) and consumes
+## one unit when the item is a consumable. Returns false if the item is not held.
+## "Consumable" = stackable item that carries an on_use effect (food, reagents); a
+## non-stackable tool/focus is reusable and never decremented by use().
+func use(item_id: String) -> bool:
+	if not has(item_id):
+		return false
+	var def: ItemDef = ItemDB.get_def(item_id)
+	if def == null:
+		return false
+	_apply_on_use(def)
+	item_used.emit(item_id)
+	if def.stackable and not def.on_use.is_empty():
+		remove(item_id, 1)
+	return true
+
+func _apply_on_use(def: ItemDef) -> void:
+	if def.on_use.is_empty():
+		return
+	match String(def.on_use.get("effect", "")):
+		"adjust_pressure":
+			var pv := StringName(String(def.on_use.get("var", "")))
+			WorldState.adjust(pv, float(def.on_use.get("delta", 0.0)))
+		_:
+			push_warning("Inventory.use: unknown on_use effect '%s' for '%s'" % [def.on_use.get("effect", ""), def.id])
+
 ## For UI: [{ id, count, def }] for every held item.
 func items() -> Array:
 	var out: Array = []
