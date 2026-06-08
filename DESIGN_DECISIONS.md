@@ -346,3 +346,55 @@ direction update (§0.1).
   tools) and **action/economy** (inventory ingredients power sabotage). The OOP `OccultTool`
   hierarchy + manager + `OccultRisk` and the inventory foundation still apply. *Alts (rejected):*
   scrap them (lose the LotM-flavored verbs + the sabotage economy).
+
+## Decision log — Vertical-slice implementation (6-plan build, 2026-06-08)
+
+Decisions made while implementing Plans 1–6 (perception/commit/runtime, overseer/critic, player
+verbs/combat). All landed with a green suite (189 passed, 0 failed) and two-stage review per task.
+
+- **Autoload access from `class_name` scripts?** → **The `_al(name)` helper** —
+  `(Engine.get_main_loop() as SceneTree).root.get_node("/root/" + name)` — used in every
+  `class_name` lib that touches an autoload (Perception, ActionCommit, Critic, OccultTool & subs,
+  Agent). In the headless `-s` harness, `class_name` scripts compile *before* autoloads register,
+  so a bare global reference (`WorldState.corruption`) fails to compile with `Identifier not
+  found`. *Alts (rejected):* bare autoload references (crash in the headless test harness, the
+  primary CI path); converting the libs to autoloads (loses value-type/`RefCounted` semantics,
+  pollutes the singleton namespace); a class-cache refresh (does not fix the compile-order issue).
+- **"No exposure by chance" invariant — where enforced?** → **A single chokepoint in
+  `Critic.review`**: an exposing `report` (to law/church/authorities, or naming cult/ritual/summon)
+  is vetoed unless `Overseer.allows_exposure()` is true (i.e. the player is involved). Because every
+  proposal funnels through the critic, the cult cannot be exposed by an unlucky autonomous beat.
+  *Alts (rejected):* scatter the check across each verb's commit logic (bypassable, easy to forget
+  one path); enforce it only in the sidecar/LLM prompt (non-deterministic, untestable, and the
+  engine must hold the invariant regardless of the brain).
+- **"World mutated only through ActionCommit" — how guaranteed?** → **`ActionCommit.commit` is the
+  one place agents change world state**; the runtime never mutates agents directly and the critic
+  is pure. *Alts (rejected):* let verbs apply their own effects inline at proposal time (multiple
+  mutation paths, no single audit point); a generic event-sourced reducer (over-engineered for the
+  slice's verb set).
+- **No-name-site invariant for divination hints?** → **Enforced by a structural guard test**
+  (`_test_divination_hints_never_name_site`) that asserts hint strings never contain the literal
+  site name — divination gives a *direction*, never the address. *Alts (rejected):* rely on prose
+  hygiene/code review only (silently regresses the moment someone edits a hint string); a
+  single-RNG determinism test (proves repeatability, not the no-name promise).
+- **Non-`approve` critic verdicts?** → **Fall straight back to the agent's schedule** (veto/reject
+  → `tick_fallback`), logging `action_vetoed`/`action_rejected`; no synchronous re-ask. Keeps a beat
+  bounded to one sidecar round-trip and keeps the world moving. *Alts (rejected):* re-ask the
+  sidecar synchronously for a fresh proposal (unbounded beat latency, possible loops); freeze the
+  agent until next beat (visibly inert NPCs).
+- **Player verbs vs. agent actions?** → **Player verbs are first-class `EventBus` events**
+  (`player_sabotage`, `player_social`, …) mirroring the agent-action shape, which is also what trips
+  `Overseer.player_involved` and thus unlocks exposure. *Alts (rejected):* a separate player-input
+  channel the overseer doesn't see (the exposure gate couldn't tell the player was involved); route
+  player actions through the same propose→critic pipeline (the player isn't a deliberating agent;
+  adds latency and pointless veto surface).
+- **SummoningPlan countdown this slice?** → **Kept passive** — `countdown_beats`, `impede_score`,
+  and `manifestation_strength()` are stored/queried but the countdown is **not** decremented yet;
+  the forward-tick wiring is deferred to the scene-integration plan. Flagged by the integration
+  reviewer (an Important finding) and accepted as a faithful, intentional slice boundary. *Alts
+  (rejected):* wire the decrement to `Clock.beat_ticked` now (pulls scene-integration scope into
+  the data-model slice, and the climax/manifestation consumer isn't built yet to observe it).
+- **`EventBus` save/load replay?** → **`from_dict` restores the log but deliberately does NOT
+  re-emit** the restored events on load — listeners (overseer, runtime) must not re-fire on a
+  resumed game. *Alts (rejected):* replay events on load (double-counts `player_involved`, re-runs
+  side effects, corrupts a resumed session).
