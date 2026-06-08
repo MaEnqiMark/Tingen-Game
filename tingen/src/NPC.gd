@@ -17,6 +17,7 @@ extends CharacterBody2D
 var _def: Dictionary = {}
 var _target: Vector2
 var _player_near: bool = false
+var _agent = null   # bound Agent (from the registry) or null = schedule fallback
 
 func _ready() -> void:
 	_def = NpcDB.get_def(npc_id)
@@ -35,6 +36,16 @@ func _ready() -> void:
 	var area: Area2D = $TalkArea
 	area.body_entered.connect(_on_body_entered)
 	area.body_exited.connect(_on_body_exited)
+	_agent = Agents.get_agent(npc_id)
+
+## True when this node is the rendered body of a live registry Agent.
+func is_bound() -> bool:
+	return _agent != null
+
+## Where the node should walk this frame: its Agent's beat-driven position when bound,
+## otherwise its scheduled waypoint.
+func steer_goal() -> Vector2:
+	return _agent.position if _agent != null else _target
 
 func _retarget(phase: String) -> void:
 	var wp := NpcDB.waypoint_for(npc_id, phase)
@@ -45,7 +56,7 @@ func _physics_process(_delta: float) -> void:
 	if DialogueManager.active:
 		velocity = Vector2.ZERO
 		return
-	var to_target := _target - global_position
+	var to_target := steer_goal() - global_position
 	if to_target.length() <= arrive_radius:
 		velocity = Vector2.ZERO
 	else:

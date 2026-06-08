@@ -45,6 +45,7 @@ func _init() -> void:
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_summoning_countdown_and_climax()
+	await _test_npc_binds_to_agent()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -608,6 +609,28 @@ func _test_summoning_countdown_and_climax() -> void:
 	SP.summoning_climax.disconnect(cb)
 	SP.countdown_changed.disconnect(cc)
 	SP.reset()
+
+func _test_npc_binds_to_agent() -> void:
+	print("[npc bind]")
+	var Ag: Object = root.get_node("/root/Agents")
+	Ag.rebuild()
+	var agent = Ag.all()[0]
+	agent.position = Vector2(777, 333)
+	var npc = load("res://scenes/NPC.tscn").instantiate()
+	npc.npc_id = agent.id
+	root.add_child(npc)
+	await process_frame
+	_ok(npc.is_bound(), "node bound to a registry agent")
+	_ok(npc.steer_goal() == Vector2(777, 333), "bound node steers toward its agent's position")
+	# Unknown id falls back to schedule mode (not bound).
+	var loose = load("res://scenes/NPC.tscn").instantiate()
+	loose.npc_id = "no_such_agent"
+	root.add_child(loose)
+	await process_frame
+	_ok(not loose.is_bound(), "unknown id is not bound (schedule fallback)")
+	npc.queue_free()
+	loose.queue_free()
+	await process_frame
 
 func _test_occult_divination() -> void:
 	print("[occult divination]")
