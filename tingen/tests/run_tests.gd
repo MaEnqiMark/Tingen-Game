@@ -40,6 +40,7 @@ func _init() -> void:
 	_test_action_commit()
 	_test_agent_runtime_beat()
 	_test_overseer_state()
+	_test_critic_verdicts()
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
@@ -440,3 +441,32 @@ func _test_overseer_state() -> void:
 	_ok(OV.allows_exposure() == false, "exposure disallowed until player is involved")
 	EB.emit_event("player_sabotage", {"actor": "player", "item": "ritual_salt"})
 	_ok(OV.allows_exposure() == true, "a player_ event marks the player involved")
+
+func _test_critic_verdicts() -> void:
+	print("[critic]")
+	var AG: Object = root.get_node("/root/Agents")
+	var OV: Object = root.get_node("/root/Overseer")
+	AG.rebuild()
+	OV.reset()
+	var voss: Agent = AG.get_agent("clerk_voss")        # cult / leader
+	var pell: Agent = AG.get_agent("dockhand_pell")     # civilian / victim
+	var orin: Agent = AG.get_agent("lamplighter_orin")  # cult / scout_waverer
+
+	# Coherent cult ritual step: approved.
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "perform_ritual_step", "args": {"step": "draw_circle"}}, voss)["verdict"] == "approve",
+		"cult leader may perform a ritual step")
+	# Victim performing a ritual step: incoherent -> veto.
+	_ok(Critic.review({"actor": "dockhand_pell", "verb": "perform_ritual_step", "args": {"step": "draw_circle"}}, pell)["verdict"] == "veto",
+		"the victim cannot perform a ritual step")
+	# A turned waverer (faction no longer cult) performing a ritual step -> veto.
+	orin.faction = "ally"
+	_ok(Critic.review({"actor": "lamplighter_orin", "verb": "perform_ritual_step", "args": {"step": "draw_circle"}}, orin)["verdict"] == "veto",
+		"a turned waverer would not perform a ritual step")
+	# Exposing report without player involvement -> veto; with involvement -> approve.
+	var expose := {"actor": "clerk_voss", "verb": "report", "args": {"to": "nighthawks", "info": "the cult meets at the warehouse"}}
+	_ok(Critic.review(expose, voss)["verdict"] == "veto", "no caught-by-chance: exposing report vetoed")
+	OV.player_involved = true
+	_ok(Critic.review(expose, voss)["verdict"] == "approve", "exposing report allowed once player is involved")
+	# Ordinary move is always fine.
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)["verdict"] == "approve",
+		"ordinary move approved")
