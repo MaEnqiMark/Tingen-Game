@@ -18,7 +18,6 @@ const OUTCOME_COLORS: Dictionary = {
 @onready var _response: RichTextLabel = $Margin/Body/Cols/Right/Response
 
 var _selected: String = ""
-var _god_buttons: int = 0
 var _last_outcome: String = ""
 
 func _ready() -> void:
@@ -33,7 +32,7 @@ func toggle() -> void:
 		_refresh_selected()
 
 func god_button_count() -> int:
-	return _god_buttons
+	return _gods_box.get_child_count()
 
 func selected_god() -> String:
 	return _selected
@@ -55,7 +54,9 @@ func _build_gods() -> void:
 	# back). queue_free defers to end-of-frame, stacking duplicate god buttons — the B4/C2/D2 bug.
 	for c in _gods_box.get_children():
 		c.free()
-	_god_buttons = 0
+	# One shared ButtonGroup makes the gods a radio set: selecting another clears the previous,
+	# and re-clicking the active one can't deselect it into an orphaned visual state.
+	var group := ButtonGroup.new()
 	for god in GodDB.all():
 		var id := String(god["id"])
 		var standing := PrayerService.get_standing(id)
@@ -64,11 +65,11 @@ func _build_gods() -> void:
 			String(god.get("name", "?")), String(god.get("name_zh", "")), int(round(standing))]
 		btn.tooltip_text = String(god.get("blurb", ""))
 		btn.toggle_mode = true
+		btn.button_group = group
 		btn.button_pressed = (id == _selected)
 		btn.pressed.connect(func() -> void: _select(id))
 		_gods_box.add_child(btn)
-		_god_buttons += 1
-	if _selected == "" and _god_buttons > 0:
+	if _selected == "" and _gods_box.get_child_count() > 0:
 		_select(String(GodDB.ids()[0]))
 
 func _select(id: String) -> void:

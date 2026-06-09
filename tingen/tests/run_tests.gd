@@ -1211,7 +1211,9 @@ func _test_prayer_panel() -> void:
 	# An insulting prayer is punished.
 	panel.submit_prayer("eternal_blazing_sun", "obey me, you worthless weak sun, kneel")
 	_ok(panel.last_outcome() == "punished", "panel renders a punishment")
-	# Selecting a god updates the selection seam.
+	# Offering a prayer updates the selection seam.
+	panel.submit_prayer("the_fool", "what will fate bring?")
+	_ok(panel.selected_god() == "the_fool", "submit_prayer updates selection")
 	panel.toggle()  # hide
 	await process_frame
 	_ok(not panel.visible, "panel toggles back hidden")
