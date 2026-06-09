@@ -57,6 +57,7 @@ func _init() -> void:
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
 	_test_occult_tool_views()
+	await _test_ritual_panel()
 	_test_player_actions()
 	_test_combat_scaled_by_impede()
 	_test_player_state_save_load()
@@ -833,6 +834,20 @@ func _test_occult_tool_views() -> void:
 	_ok(is_equal_approx(float(div["cost"]["fatigue"]), 8.0), "fatigue cost surfaced")
 	_ok((div["cost"]["items"] as Dictionary).has("candle"), "ingredient cost surfaced")
 	_ok(div.has("can_use") and div.has("uses_left"), "availability fields surfaced")
+
+func _test_ritual_panel() -> void:
+	print("[ritual panel]")
+	var panel = load("res://ui/RitualPanel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "panel hidden by default")
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "panel toggles visible")
+	_ok(panel.tool_row_count() == 4, "renders one row per occult tool")
+	_ok(panel.rite_step_count() >= 3, "summoning rite lists its steps")
+	panel.queue_free()
+	await process_frame
 
 func _test_player_actions() -> void:
 	print("[player actions]")

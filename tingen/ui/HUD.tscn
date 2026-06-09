@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://b1tngnhud00001"]
+[gd_scene load_steps=9 format=3 uid="uid://b1tngnhud00001"]
 
 [ext_resource type="Script" path="res://src/HUD.gd" id="1"]
 [ext_resource type="PackedScene" path="res://ui/InvestigationBoard.tscn" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" path="res://ui/DistrictMap.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://ui/CharacterCard.tscn" id="6"]
 [ext_resource type="PackedScene" path="res://ui/CultProgressPanel.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://ui/RitualPanel.tscn" id="8"]
 
 [node name="HUD" type="Control"]
 anchor_right = 1.0
@@ -129,4 +130,7 @@ visible = false
 visible = false
 
 [node name="CultProgress" parent="." instance=ExtResource("7")]
+visible = false
+
+[node name="RitualPanel" parent="." instance=ExtResource("8")]
 visible = false

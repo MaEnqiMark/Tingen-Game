@@ -14,6 +14,7 @@ extends Control
 @onready var _board: Control = $InvestigationBoard
 @onready var _map: Control = $DistrictMap
 @onready var _cult: Control = $CultProgress
+@onready var _rituals: Control = $RitualPanel
 
 func _ready() -> void:
 	WorldState.thought_requested.connect(_on_thought)
@@ -48,4 +49,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_cult"):
 		_cult.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_rituals"):
+		_rituals.toggle()
 		get_viewport().set_input_as_handled()
