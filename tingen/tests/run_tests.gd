@@ -667,13 +667,18 @@ func _test_cult_progress_panel() -> void:
 	await process_frame
 	_ok(panel.visible, "panel toggles visible")
 	_ok(is_equal_approx(panel.get_node("Margin/Body/Closeness/Bar").value, 50.0), "closeness bar at 50%")
+	_ok("50%" in panel.get_node("Margin/Body/Summary").text, "summary line shows the readiness percentage")
+	# Both secret cult-move types (raw + Critic-amended) must be filtered out; only the
+	# public player deed survives. Assert against the rendered TYPE name, not the verb.
 	EB.emit_event("agent_action", {"actor": "clerk_voss", "verb": "perform_ritual_step"})
+	EB.emit_event("agent_action_amended", {"actor": "masked_acolyte", "verb": "perform_ritual_step"})
 	EB.emit_event("player_sabotage", {"actor": "player", "item": "candle"})
 	var joined := ""
 	for line in panel.public_event_lines():
 		joined += String(line) + "\n"
 	_ok("player sabotage" in joined, "public player event is listed")
-	_ok(not ("perform_ritual_step" in joined), "secret agent_action is excluded")
+	_ok(not ("agent action" in joined), "secret agent_action move is excluded")
+	_ok(not ("amended" in joined), "secret agent_action_amended move is excluded")
 	panel.queue_free()
 	await process_frame
 	SP.reset(); EB.clear()

@@ -5,11 +5,16 @@ extends Panel
 ## and the player's own collected leads/clues. The hidden manifestation strength is never a
 ## raw number here; the player reads the threat through these proxies.
 
-## EventBus types the public / the player would plausibly know. The cult's own agent_action
-## moves are secret and deliberately excluded.
+## Allow-list (default-deny) of EventBus types the player would plausibly know. The cult's
+## secret moves — agent_action / agent_action_amended and the runtime's action_rejected /
+## action_vetoed / directive_rejected reasoning — are NOT listed, so they can never leak here.
 const PUBLIC_TYPES: Array = [
-	"player_sabotage", "player_social", "player_occult",
-	"event", "world_pressure", "summoning_climax", "combat_resolved",
+	"player_sabotage", "player_social", "player_occult",   # the player's own deeds
+	"summoning_climax", "combat_resolved",                 # climactic, unmissable
+	# District news + pressure shifts — the prime "publicly-known" feed. Their emitters
+	# (EventManager narrative events / world-pressure broadcasts) aren't on the bus yet, so
+	# these match nothing today; pre-allowed so they surface the moment those land.
+	"event", "world_pressure",
 ]
 const RECENT: int = 10
 
@@ -70,8 +75,11 @@ func intel_lines() -> Array:
 	return out
 
 func _fill(box: VBoxContainer, lines: Array) -> void:
+	# free() synchronously, not queue_free: the panel refreshes on both event_logged and
+	# state_changed, which can both fire in one frame. queue_free defers removal to end-of-
+	# frame, so the second refresh would stack a duplicate list on children not yet reaped.
 	for c in box.get_children():
-		c.queue_free()
+		c.free()
 	for line in lines:
 		var l := Label.new()
 		l.text = String(line)
