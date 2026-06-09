@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" path="res://icon.svg" id="2"]
 
 [sub_resource type="RectangleShape2D" id="shape"]
-size = Vector2(44, 44)
+size = Vector2(80, 80)
 
 [node name="Interactable" type="Area2D" groups=["interactable"]]
 script = ExtResource("1")
