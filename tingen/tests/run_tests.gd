@@ -66,6 +66,7 @@ func _init() -> void:
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
+	await _test_prayer_panel()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -1186,6 +1187,36 @@ func _test_prayer_parity_with_sidecar() -> void:
 			printerr("    prayer mismatch %d (%s): gd=[%s,%d] py=[%s,%d]" % [
 				i, str(fixtures[i].get("god", "")), gd_out, gd_sev, py_out, py_sev])
 	_ok(parity, "adjudicator outcomes (outcome+severity) match across %d prayers" % fixtures.size())
+
+## load() (not preload): preload resolves at parse time, before autoloads register, which
+## breaks a scene whose script uses bare autoload refs (PrayerService/GodDB) under the -s harness.
+func _test_prayer_panel() -> void:
+	print("[prayer panel]")
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	var PS: Object = root.get_node("/root/PrayerService")
+	SB.set_client(MockSidecar.new())   # deterministic adjudication
+	PS.reset()
+	var panel = load("res://ui/PrayerPanel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "panel hidden by default")
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "panel toggles visible")
+	_ok(panel.god_button_count() == 4, "one button per god in the pantheon")
+	# A respectful, domain-aligned prayer is granted and rendered.
+	var g: Dictionary = panel.submit_prayer("goddess_of_night", "i humbly beseech your mercy this night, please protect me")
+	_ok(g["outcome"] == "granted", "panel routes a granted prayer")
+	_ok(panel.last_outcome() == "granted", "panel records the rendered outcome")
+	# An insulting prayer is punished.
+	panel.submit_prayer("eternal_blazing_sun", "obey me, you worthless weak sun, kneel")
+	_ok(panel.last_outcome() == "punished", "panel renders a punishment")
+	# Selecting a god updates the selection seam.
+	panel.toggle()  # hide
+	await process_frame
+	_ok(not panel.visible, "panel toggles back hidden")
+	panel.queue_free()
+	await process_frame
 
 ## Returns the argv prefix to run Python via `/usr/bin/env` (so PATH is searched), or []
 ## if no interpreter is available. Tries python3 then python.
