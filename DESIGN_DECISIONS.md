@@ -520,3 +520,29 @@ ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on
   frame can't stack duplicate rows. *Alts (rejected):* refresh on EventBus only (the interference
   band shifts via pressures that don't emit a bus event — the bar would go stale); a polling timer
   (wasteful, and laggy relative to the beat that just changed the state).
+
+### Implementation notes — ritual & occult-tool panel (Plan D)
+
+- **How does the panel read the player's occult tools?** → **A UI-facing `tool_views()` accessor on
+  `OccultToolManager`** that flattens each tool's name/description/required-item/`compute_cost()`/
+  uses-left/can-use into a plain dict (sorted by name), plus a one-line `description` added to each
+  tool in `occult_tools.json`. The manager's `_tools` (live `OccultTool` objects bound to the seeded
+  RNG) stay private. *Alts (rejected):* expose `_tools` to the panel (leaks RNG-coupled internals
+  into UI code and lets a panel mutate gameplay state); have the panel re-read `occult_tools.json`
+  and recompute costs/availability itself (duplicates the manager's cost + gating logic, which then
+  drifts the moment either side changes).
+- **What does the cult-rite half show, and where does it come from?** → **A read-only reference card
+  (recipe + ordered steps) from a new `data/rituals.json`** — what the rite *requires in total* and
+  the *procedure*, not live cult state. The live, dwindling ritual stock is the Cult Progress panel's
+  job (Plan C). *Alts (rejected):* render `SummoningPlan.ingredients` here too (splits one truth
+  across two panels — the player would see two different ingredient readouts); drop the rite section
+  entirely (the request asks the panel to "specify usage **and requirements**" — without the rite the
+  player can't see what the cult is assembling, hence what to deny them).
+- **How are tool/rite rows cleared on refresh, and why an explicit `refresh()` after a Use?** →
+  **Synchronous `free()`** (as in Plans B/C) because a single Use fires `item_removed` + `item_added`
+  + the explicit `refresh()` in one frame; and the explicit refresh is **kept deliberately** so a
+  tool that changes uses-left/can-use *without* touching the Inventory (a limited-use tool that spends
+  no ingredient) still updates its row and Use button. *Alts (rejected):* `queue_free` (defers to
+  end-of-frame, stacking duplicate rows under exactly this multi-refresh — the B4/C2 bug); rely on
+  Inventory signals alone and drop the explicit refresh (a no-ingredient limited-use tool would leave
+  a stale "uses left" and an incorrectly-enabled Use button).
