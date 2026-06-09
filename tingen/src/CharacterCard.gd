@@ -28,7 +28,7 @@ func close() -> void:
 	visible = false
 
 func _refresh() -> void:
-	var a = Agents.get_agent(_agent_id)
+	var a: Agent = Agents.get_agent(_agent_id)
 	if a == null:
 		visible = false
 		return
@@ -36,8 +36,12 @@ func _refresh() -> void:
 	_sub.text = "%s · %s" % [String(a.faction).capitalize(), String(a.role).capitalize()]
 	_thought.text = "\"%s\"" % a.describe_thought()
 	_goal.text = a.intent
+	# Free synchronously, not queue_free: several agents can act on one beat, so
+	# event_logged may fire _refresh() twice in a single frame. queue_free defers
+	# removal to end-of-frame, so the second pass would stack a duplicate action
+	# list on top of children not yet reaped. free() clears them now.
 	for c in _actions.get_children():
-		c.queue_free()
+		c.free()
 	var recent: Array = a.short_memory.slice(maxi(0, a.short_memory.size() - 5))
 	if recent.is_empty():
 		_add_action("(nothing yet)")

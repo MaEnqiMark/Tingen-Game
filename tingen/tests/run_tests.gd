@@ -682,6 +682,10 @@ func _test_character_card_opens() -> void:
 	await process_frame
 	_ok(card.visible, "card opens on inspect_requested")
 	_ok(card.shows_agent(id), "card is showing the inspected agent")
+	# _refresh() actually bound the agent's data, not just toggled visibility:
+	var agent_obj: Object = Ag.get_agent(id)
+	_ok(card._name.text == agent_obj.display_name, "card shows the inspected agent's name")
+	_ok(card._thought.text != "", "card shows a non-empty thought line")
 	card.queue_free()
 	await process_frame
 
