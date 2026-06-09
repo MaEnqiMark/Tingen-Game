@@ -49,6 +49,7 @@ func _init() -> void:
 	_test_summoning_countdown_and_climax()
 	await _test_npc_binds_to_agent()
 	_test_inspect_signal()
+	await _test_character_card_opens()
 	await _test_live_district_wiring()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
@@ -667,6 +668,22 @@ func _test_inspect_signal() -> void:
 	WS.inspect_requested.emit("clerk_voss")
 	_ok(got == ["clerk_voss"], "inspect_requested carries the agent id")
 	WS.inspect_requested.disconnect(cb)
+
+func _test_character_card_opens() -> void:
+	print("[character card]")
+	var Ag: Object = root.get_node("/root/Agents"); Ag.rebuild()
+	var WS: Object = root.get_node("/root/WorldState")
+	var id: String = Ag.all()[0].id
+	var card = load("res://ui/CharacterCard.tscn").instantiate()
+	root.add_child(card)
+	await process_frame
+	_ok(not card.visible, "card hidden by default")
+	WS.inspect_requested.emit(id)
+	await process_frame
+	_ok(card.visible, "card opens on inspect_requested")
+	_ok(card.shows_agent(id), "card is showing the inspected agent")
+	card.queue_free()
+	await process_frame
 
 func _test_live_district_wiring() -> void:
 	print("[live district]")

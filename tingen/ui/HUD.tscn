@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://b1tngnhud00001"]
+[gd_scene load_steps=7 format=3 uid="uid://b1tngnhud00001"]
 
 [ext_resource type="Script" path="res://src/HUD.gd" id="1"]
 [ext_resource type="PackedScene" path="res://ui/InvestigationBoard.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://ui/DialoguePanel.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://ui/Toasts.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://ui/DistrictMap.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://ui/CharacterCard.tscn" id="6"]
 
 [node name="HUD" type="Control"]
 anchor_right = 1.0
@@ -121,4 +122,7 @@ visible = false
 [node name="Toasts" parent="." instance=ExtResource("4")]
 
 [node name="DistrictMap" parent="." instance=ExtResource("5")]
+visible = false
+
+[node name="CharacterCard" parent="." instance=ExtResource("6")]
 visible = false
