@@ -622,3 +622,153 @@ ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on
   reasons) is internal and bracket-free, so there is no live injection surface; escaping today would
   be dead defensive code. *Alt (rejected, tracked):* escape `[`/`]` at render time — revisit when the
   real LLM sidecar can return free-form `message` text that might contain BBCode-like markup.
+
+### Implementation notes — live-world staging, debug overlay & living NPCs (post-Plan-F)
+
+The world boots but reads as a void: a 2×-too-wide camera over two flat polygons, NPCs stacked on
+top of each other with unreadable labels, a stale detective-era lead in the top bar, and agents that
+deliberate but rarely *move* on screen. This pass makes the live world legible and gives developers a
+window into what the agent-sim is actually doing each beat.
+
+- **Lead reframed from the detective premise to the cult-summoning premise.** The top-bar lead read
+  "Work out what happened in this room." — a holdover from the room-escape scaffold, actively
+  misleading now that the game is an open-world race to stop a descending god (外神). Rewrote it to
+  point the player at the Iron Cross Street (铁十字街) warehouse and the rite. *Alts (rejected):* drive
+  the lead from a quest/objective system (no such system exists yet — premature); leave it and fix
+  later (it is the single most prominent line of text on screen, so it sets the wrong frame for every
+  playtest).
+- **Camera zoom set to 2× on the player rig.** At 1× the 1280×720 viewport showed so much empty world
+  that NPCs were thumbnail-sized and labels illegible. 2× frames the player and nearby agents at a
+  readable size without hiding the active radius. *Alts (rejected):* move the camera farther back and
+  scale up sprites (fights the art's native resolution); per-scene Camera2D limits (the world is not
+  yet bounded — no meaningful limits to set).
+- **NPC morning waypoints spread apart in `npcs.json`.** Four NPCs (voss, dalia, orin, pell) all spawned
+  within a ~40px cluster because their morning waypoints were authored close together; labels and
+  bodies overlapped into an unreadable smear. Pushed them onto distinct positions around the warehouse
+  so each is individually selectable and readable. *Alts (rejected):* runtime jitter/spread at spawn
+  (hides the authored positions and fights the schedule system that drives NPCs *back* to waypoints);
+  collision-based separation (overkill for static spawn legibility).
+- **Re-pinned voss in the agent-runtime idle test instead of reverting the waypoint data.** Spreading
+  voss's morning waypoint toward the warehouse made him drift out of the test's tight `active_radius=50`
+  across the pre-idle beats, so on the idle beat he correctly fell back to his schedule (moving) — and
+  the "idle leaves agent in place" assertion failed. The product behavior is right; the test was
+  coupled to the old waypoint. Fixed by re-pinning `voss.position = Vector2(400, 300)` immediately
+  before the idle sub-case. *Alts (rejected):* revert the legibility change (trades a real, visible
+  improvement for a hidden test coupling); widen `active_radius` (changes what the test exercises).
+
+**Debug event-log overlay (`DebugLogPanel`, toggle F1):**
+- **A single overlay that mirrors the entire EventBus, not a per-system inspector.** The EventBus is
+  already the append-only spine every system writes to (agent actions, amendments, schema rejections,
+  critic vetoes, overseer directives, player verbs, combat, summoning, and — once wired — sidecar
+  proposals/errors). One overlay reading `EventBus.events()` shows the whole simulation in causal order
+  for free. *Alts (rejected):* separate panels per subsystem (duplicates the bus's own categorization,
+  N panels to keep in sync); a file/stdout log (invisible during a live playtest, which is exactly when
+  you need to see why an NPC did nothing).
+- **Colored by event type, newest-first, capped at the last 50.** Color lets the log scan at a glance
+  (greens = committed actions, reds = rejections/vetoes, blue = player, etc.); newest-first puts the
+  most recent beat at the top where the eye lands; 50 lines keeps layout cheap while the bus retains up
+  to 2000. *Alts (rejected):* render all retained events (layout thrash, unreadable wall); oldest-first
+  (forces a scroll to see what just happened).
+- **A "Brain:" header line names the live `SidecarClient` subclass plus beat/clock.** The single most
+  important debugging question for living NPCs is *which brain is serving proposals* — Mock, Ambient, or
+  the real Http sidecar. Reading it off `SidecarBridge.client`'s script name surfaces that without a
+  separate status UI. *Alts (rejected):* infer the brain from event contents (fragile, indirect); a
+  separate status widget (more UI to place for one line of text).
+- **Synchronous `free()` on refresh, not `queue_free()`.** `event_logged` can fire several times in one
+  frame; a deferred free would let a second refresh in the same frame stack duplicate child labels onto
+  not-yet-reaped ones. Freeing synchronously before rebuild guarantees one label per shown event. *Alt
+  (rejected):* `queue_free()` (same-frame double-refresh duplicate stacking — the exact bug this avoids).
+- **F1 chosen for the toggle.** F1 is unbound and conventionally "debug/help"; the other panel toggles
+  (Tab/M/C/R/P) are taken by player-facing panels. *Alt (rejected):* a backtick/console-style key
+  (already reserved for `toggle_console`).
+
+**Living NPCs — the offline ambient brain (`AmbientSidecar`):**
+- **A new default brain that goal-seeks, replacing the scripted `MockSidecar` as the boot default.**
+  `MockSidecar` returns a short canned script then falls to `idle`, so with no LLM the district froze
+  after a few beats — NPCs deliberated but stopped moving. `AmbientSidecar` instead emits a fresh
+  `move_to` every beat toward a faction-appropriate goal, so the world stays in motion with zero API
+  cost. *Alts (rejected):* extend `MockSidecar`'s script to be longer (still finite, still freezes,
+  and authoring per-NPC scripts does not scale); drive ambient movement from the engine's schedule
+  system alone (schedules pull NPCs *to* waypoints and hold — no continuous on-screen life, and it
+  would bypass the sidecar seam the whole sim is built around).
+- **`AmbientSidecar extends MockSidecar` (not `SidecarClient` directly) so prayers still adjudicate.**
+  Prayer adjudication is ~50 lines of deterministic logic living on `MockSidecar`; subclassing inherits
+  it for free, so the offline brain answers prayers correctly instead of regressing to the base
+  "ignored". *Alt (rejected):* extend `SidecarClient` and duplicate or re-stub prayer logic (copy-paste
+  of the exact thing the parent already does right; the base stub would silently break live prayers).
+- **Cultists (邪教) path to the warehouse; civilians follow their schedule waypoint.** The story is a
+  cult racing to summon a descending god (外神) at the Iron Cross (铁十字街) warehouse, so faction is the
+  one signal that should bias movement: `faction` containing "cult" → head to `WAREHOUSE (420,360)`,
+  everyone else → their `NpcDB.waypoint_for(actor, phase)`. This makes the central conflict legible on
+  screen without any LLM. *Alts (rejected):* random wander for all (no readable story, cult looks
+  identical to bystanders); hard-code each NPC's destination (does not generalize as the roster grows).
+- **Deterministic per-beat hash scatter around the goal instead of true randomness.** Agents sharing a
+  goal (e.g. several cultists → one warehouse) would stack into one unreadable blob. A hash of
+  `actor|axis|beat` yields a stable offset in ~[-28,28]px: same agent+beat always lands the same spot
+  (so tests are deterministic and a re-proposed beat is idempotent), yet the cluster spreads and
+  re-scatters each new beat for visible life. *Alts (rejected):* `randf()` jitter (non-deterministic —
+  breaks the "same beat = same action" test and makes replays diverge); fixed per-agent offsets (static
+  once arrived — no ongoing motion).
+
+**Environment art — the procedural Iron Cross streetscape (`LiveDistrict._build_streetscape`):**
+- **Generate the street in code from `districts.json`, not from authored art or a hand-built scene.**
+  No streetscape art assets exist, and the district shapes already live as polygons in `districts.json`.
+  Drawing tinted region polygons + authored set-dressing (roads, warehouse, lamps) procedurally means
+  the visual *is* the data — move a polygon and the art follows — matching the project's data-driven
+  ethos. *Alts (rejected):* commission/generate raster street tiles (no pipeline for it, heavy, and it
+  would drift out of sync with the collision polygons); lay the scene out by hand in the `.tscn` (freezes
+  the geometry away from `districts.json`, the single source of truth the sim already reads).
+- **Streetscape lives under one `Streetscape` Node2D, built first in `_ready()` so it renders behind
+  actors.** Z-order in Godot 2D follows tree order; building the backdrop before the player/agents spawn
+  guarantees NPCs and the player draw on top without per-node `z_index` bookkeeping. A single parent node
+  also gives the test a stable seam to assert against (`Streetscape` exists, child count, warehouse
+  marker). *Alts (rejected):* per-element `z_index` (scatters ordering across many nodes, easy to get
+  wrong); add pieces straight onto the root (no clean handle for teardown or for the wiring test).
+- **ASCII-only on-screen labels ("Iron Cross Street", "The Harbor", "Warehouse").** The bundled fallback
+  font has no CJK glyphs, so Chinese place-names would render as tofu boxes (□□□). Labels stay ASCII for
+  legibility; the Chinese canon (铁十字街 etc.) stays in code comments and this doc. *Alt (rejected):* ship
+  a CJK font just for set-dressing labels (weight and licensing cost for decoration the player barely
+  reads — revisit when localized UI is a real goal).
+- **A `has_warehouse_marker()` seam on `LiveDistrict` for the wiring test.** The warehouse is the
+  story's focal site; the test needs to confirm it actually rendered without scraping the node tree for a
+  magic label. A tiny query method (true when a `"Warehouse"` Label exists) is a stable contract the test
+  can hold even if the backdrop's internals are reshuffled. *Alt (rejected):* assert on the raw child
+  hierarchy in the test (brittle — every set-dressing tweak would break an unrelated assertion).
+
+**Real LLM wiring — the threaded HTTP brain (`HttpSidecar`) + sidecar `decide()`:**
+- **`HttpSidecar extends AmbientSidecar`, so every failure path is a live goal-seeking move, never a
+  freeze.** A cold cache, an in-flight request, an unreachable sidecar, or a malformed reply all fall
+  through to `super.propose()` — the ambient brain — so the world keeps moving whether or not the LLM
+  answers. *Alts (rejected):* extend `SidecarClient` and fall back to `idle` on any miss (the freeze we
+  just fixed); block the beat until the HTTP reply lands (a 15s real-time beat cannot wait seconds on a
+  network call — it would stall the whole game).
+- **Background `Thread` with one-beat latency, not a synchronous call.** The LLM round-trip takes
+  seconds; the beat is 15 real seconds and must not block. `propose()` returns *this* beat instantly
+  from a per-agent cache (ambient-filled for any agent not yet heard from) and kicks off a worker thread
+  whose reply is applied on the *next* beat. One beat of staleness is invisible at human pace and buys a
+  non-blocking sim. *Alts (rejected):* synchronous HTTP in `propose()` (stalls the frame for seconds);
+  Godot's async `HTTPRequest` node (needs a node in the tree + signal plumbing, and still must marshal
+  back to the main thread — more moving parts than a single worker thread for one POST).
+- **All engine state touched only on the main thread; the worker does pure HTTP+JSON behind a mutex.**
+  The worker thread never reads the cache, the EventBus, or any node — it returns `{actions, error}`
+  through a mutex-guarded buffer that the next `propose()` drains and applies on the main thread. This
+  keeps Godot's non-thread-safe scene API off the worker and confines all races to one small buffer.
+  *Alt (rejected):* let the worker write the cache / emit events directly (data races on the scene tree
+  and the EventBus — exactly what Godot's threading rules forbid).
+- **Opt-in via the `TINGEN_SIDECAR_URL` env var; unset = pure offline ambient.** A bare checkout, CI, and
+  the test suite must run with no network and no API key, so the real brain only engages when a URL is
+  explicitly provided. Same pattern the asset-gen tooling uses for its token. *Alt (rejected):* default
+  to `localhost:8777` and probe it (every offline boot eats a connection-refused round-trip, and tests
+  would flake against whatever happens to be on that port).
+- **The API key stays quarantined in the Python sidecar; Godot only ever sends snapshots.** The engine
+  posts perception JSON and receives validated actions — it never holds `ANTHROPIC_API_KEY`. The sidecar
+  reads the key from env/`--env-file`, uses it only to authenticate the Anthropic call, and logs
+  *presence* not value. Keeps secrets out of the game binary and its logs entirely. *Alt (rejected):*
+  call Anthropic from GDScript (puts the key in the shipped engine and its EventBus/logs — a secret-
+  leak surface; also duplicates the prompt/validation logic the sidecar already owns).
+- **Every action re-validated against the shared schema on the engine side too, even though the sidecar
+  validates.** `apply_reply` runs `ActionSchema.validate` on each returned action before caching it;
+  invalid ones are dropped and surfaced as `sidecar_error` in the debug overlay. The engine never trusts
+  the brain — defense in depth against a buggy/old sidecar or a future non-Claude brain. *Alt (rejected):*
+  trust the sidecar's own validation (one schema drift or a swapped brain and bad actions reach the
+  runtime; the cost of re-checking is a few `if`s).

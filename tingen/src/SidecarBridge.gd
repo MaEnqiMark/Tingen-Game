@@ -1,14 +1,28 @@
 extends Node
 ## The single seam between the substrate and the LLM brain (autoload `SidecarBridge`).
-## Holds one active SidecarClient — a MockSidecar by default so the game and CI run with
-## zero network/API. The agent runtime (a later plan) calls `propose(snapshots)` here and
-## nowhere else; swapping in the real HttpSidecar is a one-line `set_client` change.
+## Holds one active SidecarClient, chosen at boot:
+##   - TINGEN_SIDECAR_URL set -> HttpSidecar, the real LLM brain (Python agent-sidecar over HTTP),
+##     with AmbientSidecar goal-seeking as its built-in fallback so nothing freezes if it is down;
+##   - otherwise           -> AmbientSidecar, the offline brain that moves the district with no API.
+## Tests pin a MockSidecar explicitly for deterministic scripted behavior. The agent runtime calls
+## `propose(snapshots)` here and nowhere else.
+
+const SIDECAR_URL_ENV: String = "TINGEN_SIDECAR_URL"
 
 var client: SidecarClient = null
 
 func _ready() -> void:
 	if client == null:
-		client = MockSidecar.new()
+		var url := OS.get_environment(SIDECAR_URL_ENV) if OS.has_environment(SIDECAR_URL_ENV) else ""
+		if url != "":
+			client = HttpSidecar.new(url)
+			print("[sidecar] live brain: HttpSidecar -> %s" % url)
+		else:
+			client = AmbientSidecar.new()
+
+func _exit_tree() -> void:
+	if client != null and client.has_method("shutdown"):
+		client.call("shutdown")
 
 func set_client(c: SidecarClient) -> void:
 	client = c

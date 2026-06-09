@@ -29,7 +29,7 @@ var cult_readiness: float = 0.0
 var attention: float = 0.0
 
 var time_phase: String = "Morning"
-var current_lead: String = "Work out what happened in this room."
+var current_lead: String = "A cult races to summon the descending god. Find their warehouse on Iron Cross Street and stop the rite."
 
 ## Derived, player-facing summary meter. Not stored, not saved.
 func stability() -> float:

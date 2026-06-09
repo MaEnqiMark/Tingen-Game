@@ -37,6 +37,8 @@ func _init() -> void:
 	_test_inventory_save_load()
 	_test_action_schema()
 	_test_mock_sidecar()
+	_test_ambient_sidecar()
+	_test_http_sidecar()
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
 	_test_action_commit()
@@ -67,6 +69,7 @@ func _init() -> void:
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
 	await _test_prayer_panel()
+	await _test_debug_log_panel()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -364,6 +367,75 @@ func _test_mock_sidecar() -> void:
 	var out3: Array = mock.propose([{"agent_id": "orin"}])
 	_ok(out3[0]["verb"] == "idle", "empty queue falls back to idle")
 
+func _parse_xy(s: String) -> Vector2:
+	var p := s.split(",")
+	return Vector2(float(p[0]), float(p[1]))
+
+func _test_ambient_sidecar() -> void:
+	print("[ambient sidecar]")
+	var amb := AmbientSidecar.new()
+	# Batch of two: a cultist drawn to the rite, a civilian on their daily round.
+	var cult_snap := {"agent_id": "clerk_voss", "faction": "cult", "position": [200.0, 200.0], "phase": "morning", "beat": 7}
+	var civ_snap := {"agent_id": "fishwife_dalia", "faction": "civilian", "position": [120.0, 120.0], "phase": "morning", "beat": 7}
+	var out: Array = amb.propose([cult_snap, civ_snap])
+	_ok(out.size() == 2, "one proposal per snapshot")
+	_ok(out[0]["verb"] == "move_to", "ambient agents move — they never freeze on idle")
+	_ok(ActionSchema.validate(out[0])["ok"], "cult proposal is schema-valid")
+	_ok(ActionSchema.validate(out[1])["ok"], "civilian proposal is schema-valid")
+	# Cultists converge on the warehouse: target lands within a scatter of the rite site.
+	var cult_t: Vector2 = _parse_xy(out[0]["args"]["target"])
+	_ok(cult_t.distance_to(AmbientSidecar.WAREHOUSE) <= AmbientSidecar.WANDER * 1.5, "cult target sits at the rite site")
+	# Civilians follow their schedule: target lands near their phase waypoint.
+	var ND: Object = root.get_node("/root/NpcDB")
+	var wp: Vector2 = ND.waypoint_for("fishwife_dalia", "morning")
+	var civ_t: Vector2 = _parse_xy(out[1]["args"]["target"])
+	_ok(civ_t.distance_to(wp) <= AmbientSidecar.WANDER * 1.5, "civilian target follows the day's schedule")
+	# Deterministic: identical snapshot -> identical proposal (pure function of inputs).
+	var again: Array = amb.propose([cult_snap])
+	_ok(again[0]["args"]["target"] == out[0]["args"]["target"], "same beat replays the same proposal")
+	# A new beat re-scatters the goal so the crowd doesn't stand stock still.
+	var later: Dictionary = cult_snap.duplicate()
+	later["beat"] = 8
+	var moved: Array = amb.propose([later])
+	_ok(moved[0]["args"]["target"] != out[0]["args"]["target"], "a new beat re-scatters the goal")
+	# Prayer adjudication is inherited from MockSidecar, so the live brain still answers prayers.
+	var verdict: Dictionary = amb.adjudicate_prayer({"god": "outer_god", "prayer": "I humbly beseech you, grant mercy", "standing": 1.0})
+	_ok(verdict.has("outcome"), "ambient brain still adjudicates prayers (inherited from mock)")
+
+func _test_http_sidecar() -> void:
+	print("[http sidecar]")
+	var EB: Object = root.get_node("/root/EventBus")
+	# URL parsing (pure/static) — host, port, and scheme.
+	var u: Dictionary = HttpSidecar._split_url("http://127.0.0.1:8777")
+	_ok(u["host"] == "127.0.0.1" and int(u["port"]) == 8777 and not bool(u["use_ssl"]), "parses host/port from an http url")
+	var s: Dictionary = HttpSidecar._split_url("https://sidecar.example.com/propose")
+	_ok(s["host"] == "sidecar.example.com" and int(s["port"]) == 443 and bool(s["use_ssl"]), "https defaults to 443 and strips the path")
+	# Unconfigured (no URL): it IS the ambient brain — every agent moves, nothing networks.
+	var off := HttpSidecar.new("")
+	var out: Array = off.propose([{"agent_id": "clerk_voss", "faction": "cult", "position": [200.0, 200.0], "phase": "morning", "beat": 3}])
+	_ok(out.size() == 1 and out[0]["verb"] == "move_to", "unconfigured http sidecar falls back to ambient movement")
+	# Configured: a completed LLM reply is cached + logged; agents not yet heard from ambient-fill.
+	var cli := HttpSidecar.new("http://127.0.0.1:8777")
+	EB.clear()
+	cli.apply_reply([{"actor": "clerk_voss", "verb": "hide", "args": {}}], "")
+	_ok(EB.events("sidecar_proposed").size() == 1, "a valid LLM action is logged as sidecar_proposed")
+	var picked: Array = cli.pick([
+		{"agent_id": "clerk_voss", "faction": "cult", "position": [200.0, 200.0], "phase": "morning", "beat": 3},
+		{"agent_id": "fishwife_dalia", "faction": "civilian", "position": [120.0, 120.0], "phase": "morning", "beat": 3}])
+	_ok(picked[0]["verb"] == "hide", "the cached LLM action is served for that agent")
+	_ok(picked[1]["verb"] == "move_to", "an agent with no LLM action yet ambient-fills (keeps moving)")
+	# Invalid LLM actions are dropped (never cached) and surfaced as sidecar_error.
+	EB.clear()
+	cli.apply_reply([{"actor": "lamplighter_orin", "verb": "teleport", "args": {}}], "")
+	_ok(EB.events("sidecar_error").size() == 1, "an invalid LLM action is logged as sidecar_error")
+	var picked2: Array = cli.pick([{"agent_id": "lamplighter_orin", "faction": "cult", "position": [300.0, 300.0], "phase": "morning", "beat": 4}])
+	_ok(picked2[0]["verb"] == "move_to", "a rejected LLM action does not stick; the agent ambient-fills")
+	# A transport failure is surfaced as sidecar_error too.
+	EB.clear()
+	cli.apply_reply([], "connect timeout")
+	_ok(EB.events("sidecar_error").size() == 1, "a transport error is logged as sidecar_error")
+	cli.shutdown()
+
 func _test_sidecar_bridge() -> void:
 	print("[sidecar bridge]")
 	var SB: Object = root.get_node("/root/SidecarBridge")
@@ -467,9 +539,12 @@ func _test_agent_runtime_beat() -> void:
 	_ok(EB.events("action_rejected").size() == 1, "invalid action is rejected, not committed")
 	_ok(EB.events("agent_action").size() == 0, "no agent_action for the rejected proposal")
 
-	# Idle proposal -> no movement.
+	# Idle proposal -> no movement. Re-pin voss onto the player first so it is unambiguously
+	# active this beat; prior beats' schedule-fallback drift is a separate concern from whether
+	# an idle verb moves the agent (it must not).
 	EB.clear()
 	mock.set_action("clerk_voss", {"actor": "clerk_voss", "verb": "idle", "args": {}})
+	voss.position = Vector2(400, 300)
 	var pos_idle: Vector2 = voss.position
 	ART.run_beat()
 	_ok(voss.position == pos_idle, "idle proposal leaves the agent in place")
@@ -757,6 +832,11 @@ func _test_live_district_wiring() -> void:
 			npc_count += 1
 	_ok(npc_count == Ag.all().size(), "spawns one NPC per registry agent")
 	_ok(AR.player_position == scene.player_start, "runtime player_position fed from the live player")
+	# Procedural streetscape: the set is dressed (not a void) and names the cult's rite site.
+	var street: Node = scene.get_node_or_null("Streetscape")
+	_ok(street != null, "live district builds a streetscape")
+	_ok(street != null and street.get_child_count() >= 15, "streetscape is richly dressed")
+	_ok(scene.has_warehouse_marker(), "streetscape marks the warehouse (rite site)")
 	scene.queue_free()
 	await process_frame
 
@@ -1217,6 +1297,33 @@ func _test_prayer_panel() -> void:
 	panel.toggle()  # hide
 	await process_frame
 	_ok(not panel.visible, "panel toggles back hidden")
+	panel.queue_free()
+	await process_frame
+
+## The debug overlay mirrors the WHOLE EventBus (no allow-list), newest first, and refreshes
+## live while open. Distinct from the cult panel, which filters to publicly-known events.
+func _test_debug_log_panel() -> void:
+	print("[debug log panel]")
+	var EB: Object = root.get_node("/root/EventBus")
+	EB.clear()
+	var panel = load("res://ui/DebugLogPanel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "debug panel hidden by default")
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "debug panel toggles visible")
+	_ok(panel.line_count() == 1, "empty log shows a single placeholder line")
+	# Events logged while open refresh the panel live; newest is shown first, unfiltered.
+	EB.emit_event("agent_action", {"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}})
+	EB.emit_event("action_rejected", {"actor": "lamplighter_orin", "verb": "teleport", "reason": "unknown verb"})
+	await process_frame
+	_ok(panel.line_count() == 2, "panel renders one line per logged event")
+	_ok(panel.newest_line().contains("action rejected"), "newest event is shown first")
+	_ok(panel.newest_line().contains("reason: unknown verb"), "rejection reason is surfaced")
+	panel.toggle()  # hide
+	await process_frame
+	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
 

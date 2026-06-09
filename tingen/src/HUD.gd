@@ -16,6 +16,7 @@ extends Control
 @onready var _cult: Control = $CultProgress
 @onready var _rituals: Control = $RitualPanel
 @onready var _prayer: Control = $PrayerPanel
+@onready var _debug: Control = $DebugLogPanel
 
 func _ready() -> void:
 	WorldState.thought_requested.connect(_on_thought)
@@ -56,4 +57,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_prayer"):
 		_prayer.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_debug"):
+		_debug.toggle()
 		get_viewport().set_input_as_handled()

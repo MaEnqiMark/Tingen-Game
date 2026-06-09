@@ -7,9 +7,10 @@ POSTs perception snapshots; this service returns ONE validated action per snapsh
 chosen from the constrained verb schema shared with the engine
 (tingen/data/action_schema.json). All LLM nondeterminism is quarantined here.
 
-This scaffold returns safe `idle` actions by default and validates every action against
-the shared schema. Wiring real Claude calls is a later task — the contract is what
-matters now, so the engine can talk to a stable boundary.
+With ANTHROPIC_API_KEY present it asks Claude for each agent's next action, constrained to
+the shared verb schema; with no key (or on any network/parse failure) it returns a safe
+`idle` and the engine's ambient brain fills in movement. Every action is validated against
+the schema before it leaves this service.
 
 Key handling (mirrors asset-gen/generate_tingen_assets.py):
   Reads ANTHROPIC_API_KEY from the environment, else from --env-file. The token value is
@@ -28,11 +29,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 # Shared schema: one source of truth with the engine.
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "tingen" / "data" / "action_schema.json"
+
+# Anthropic Messages API (called via stdlib urllib — no third-party deps). A per-beat NPC
+# decision is small and frequent, so the default is a fast model; override with TINGEN_SIDECAR_MODEL.
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+MODEL = os.environ.get("TINGEN_SIDECAR_MODEL", "claude-haiku-4-5-20251001")
+MAX_TOKENS = 256
+HTTP_TIMEOUT = 18  # seconds; under the Godot client's ~20s budget before it ambient-falls-back
 
 
 def load_schema() -> dict:
@@ -55,14 +66,97 @@ def validate_action(action: dict, verbs: dict) -> tuple[bool, str]:
     return True, ""
 
 
-def decide(snapshot: dict, verbs: dict) -> dict:
-    """Pick one action for one agent. Scaffold default: idle. (LLM call goes here later.)"""
+def idle_action(snapshot: dict) -> dict:
     return {"actor": snapshot.get("agent_id", ""), "verb": "idle", "args": {}}
+
+
+def verb_menu(verbs: dict) -> str:
+    """One line per verb with its required args, so the model only ever emits legal actions."""
+    lines = []
+    for verb in sorted(verbs):
+        req = verbs[verb]
+        lines.append(f"- {verb}: requires {req}" if req else f"- {verb}: no args")
+    return "\n".join(lines)
+
+
+def build_prompt(snapshot: dict, verbs: dict) -> str:
+    persona = {
+        "id": snapshot.get("agent_id", ""),
+        "name": snapshot.get("display_name", ""),
+        "faction": snapshot.get("faction", ""),
+        "role": snapshot.get("role", ""),
+        "intent": snapshot.get("intent", ""),
+        "position": snapshot.get("position", []),
+    }
+    world = {
+        "phase": snapshot.get("phase", ""),
+        "stage": snapshot.get("stage", ""),
+        "pressures": snapshot.get("pressures", {}),
+    }
+    return (
+        "You are one inhabitant of Tingen, a fog-choked Victorian city where a cult races to "
+        "summon a descending god. Choose THIS character's single next action for the current "
+        "beat, in character, using the allowed verbs only.\n\n"
+        f"Character: {json.dumps(persona, ensure_ascii=False)}\n"
+        f"World: {json.dumps(world, ensure_ascii=False)}\n"
+        f"Nearby: {json.dumps(snapshot.get('nearby', []), ensure_ascii=False)}\n\n"
+        f"Allowed verbs (use these names EXACTLY and include every required arg):\n"
+        f"{verb_menu(verbs)}\n\n"
+        "A move target may be another agent's id, the site name 'iron_cross_warehouse', or an "
+        "'x,y' coordinate string.\n"
+        'Respond with ONLY a JSON object like {"verb": "move_to", "args": {"target": "..."}}. '
+        "No prose, no markdown fence."
+    )
+
+
+def extract_action(text: str) -> dict:
+    """Pull the first JSON object out of the model's reply (tolerates stray prose or fences)."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        obj = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
+    return obj if isinstance(obj, dict) else {}
+
+
+def call_claude(snapshot: dict, verbs: dict, key: str) -> dict:
+    payload = json.dumps({
+        "model": MODEL,
+        "max_tokens": MAX_TOKENS,
+        "messages": [{"role": "user", "content": build_prompt(snapshot, verbs)}],
+    }).encode("utf-8")
+    req = urllib.request.Request(ANTHROPIC_URL, data=payload, method="POST")
+    req.add_header("content-type", "application/json")
+    req.add_header("anthropic-version", ANTHROPIC_VERSION)
+    req.add_header("x-api-key", key)  # used only to authenticate; never logged or returned to Godot
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+    return extract_action(text)
+
+
+def decide(snapshot: dict, verbs: dict, key: str = "") -> dict:
+    """One action for one agent. With a key, ask Claude; without (or on any failure), idle."""
+    if not key:
+        return idle_action(snapshot)
+    try:
+        action = call_claude(snapshot, verbs, key)
+    except Exception:
+        return idle_action(snapshot)  # any network/parse failure -> safe idle (engine ambient-fills)
+    if not isinstance(action, dict) or "verb" not in action:
+        return idle_action(snapshot)
+    action["actor"] = snapshot.get("agent_id", "")  # the engine binds the action to this agent
+    action.setdefault("args", {})
+    ok, _reason = validate_action(action, verbs)
+    return action if ok else idle_action(snapshot)
 
 
 class Handler(BaseHTTPRequestHandler):
     verbs: dict = {}
     has_key: bool = False
+    key: str = ""   # used in-process for the Anthropic call; never printed or sent to the engine
 
     def log_message(self, *_args) -> None:  # keep logs quiet + key-safe
         pass
@@ -94,7 +188,7 @@ class Handler(BaseHTTPRequestHandler):
         snapshots = req.get("snapshots", [])
         actions = []
         for snap in snapshots:
-            action = decide(snap, self.verbs)
+            action = decide(snap, self.verbs, self.key)
             ok, reason = validate_action(action, self.verbs)
             if not ok:
                 action = {"actor": snap.get("agent_id", ""), "verb": "idle", "args": {}, "_invalid": reason}
@@ -121,11 +215,13 @@ def main() -> None:
 
     key = read_key(args.env_file)
     Handler.verbs = load_schema()
-    Handler.has_key = bool(key)  # store presence only; NEVER the value
+    Handler.has_key = bool(key)  # presence flag for /health; NEVER the value
+    Handler.key = key            # used in-process for the Anthropic call; never printed
 
     # Key presence only — never echo the token.
     print(f"[sidecar] schema verbs: {sorted(Handler.verbs)}")
-    print(f"[sidecar] ANTHROPIC_API_KEY {'present' if key else 'MISSING (idle-only mode)'}")
+    print(f"[sidecar] model: {MODEL}")
+    print(f"[sidecar] ANTHROPIC_API_KEY {'present (LLM mode)' if key else 'MISSING (idle-only mode)'}")
     print(f"[sidecar] listening on http://127.0.0.1:{args.port}")
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
