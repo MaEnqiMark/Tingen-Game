@@ -214,3 +214,97 @@ def build_prompt(kind: str, char: str, action: str | None, facing: str | None) -
     if kind == "design":
         return build_design_prompt(char)
     return build_action_prompt(char, action, facing)
+
+
+# ── Runner ────────────────────────────────────────────────────────────────────
+def _load_manifest() -> dict:
+    return json.loads(MANIFEST_PATH.read_text()) if MANIFEST_PATH.exists() else {"sheets": []}
+
+
+def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path) -> None:
+    key = (char, kind, action, facing)
+    manifest["sheets"] = [
+        e for e in manifest["sheets"]
+        if (e["character"], e["kind"], e.get("action"), e.get("facing")) != key
+    ]
+    manifest["sheets"].append({
+        "character": char, "kind": kind, "action": action, "facing": facing,
+        "path": str(output_path(kind, char, action, facing).relative_to(HERE)),
+        "prompt": prompt, "ref": str(ref.relative_to(HERE)) if ref else None,
+        "input_fidelity": "high", "size": SHEET_SIZE, "background": SHEET_BG,
+        "frame_count": 1 if kind == "design" else 8, "endpoint": "edits",
+    })
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Generate Tingen character animation sheets")
+    ap.add_argument("--dry-run", action="store_true", help="print plan, no API calls")
+    ap.add_argument("--force", action="store_true", help="regenerate even if output exists")
+    ap.add_argument("--stage", choices=["design", "action", "all"], default="all")
+    ap.add_argument("--character", choices=list(ANIM_CAST), help="only this cast key")
+    ap.add_argument("--limit", type=int, help="cap number of jobs (testing)")
+    ap.add_argument("--quality", choices=["low", "medium", "high"], default="high")
+    ap.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE)
+    args = ap.parse_args()
+
+    jobs = list(iter_anim_jobs(args.stage, args.character))
+    if args.limit:
+        jobs = jobs[:args.limit]
+    cost = {"low": 0.02, "medium": 0.05, "high": 0.25}.get(args.quality, 0.25)
+    print("Tingen Character Animation Generator (gpt-image-1)")
+    print(f"  output : {ANIM_DIR}")
+    print(f"  jobs   : {len(jobs)} sheets @ {args.quality}  (est. ${len(jobs) * cost:.2f})")
+    print(f"  mode   : {'DRY RUN' if args.dry_run else 'LIVE'}")
+
+    if not args.dry_run:
+        hero.OPENAI_API_KEY = hero.load_key(args.env_file)  # generate() reads hero's global
+        if not hero.OPENAI_API_KEY:
+            print(f"ERROR: OPENAI_API_KEY not found (env or {args.env_file})")
+            sys.exit(1)
+        print(f"  key    : loaded ({len(hero.OPENAI_API_KEY)} chars)")
+
+    manifest = _load_manifest()
+    done = skip = fail = 0
+    for i, (kind, char, action, facing) in enumerate(jobs, 1):
+        fpath = output_path(kind, char, action, facing)
+        tag = f"{char}/{'_design' if kind == 'design' else f'{action}_{facing}'}"
+        if fpath.exists() and not args.force:
+            skip += 1
+            continue
+        ref = resolve_ref(kind, char)
+        prompt = build_prompt(kind, char, action, facing)
+
+        if args.dry_run:
+            print(f"  [{i}/{len(jobs)}] {tag}  ref={ref.name}")
+            print(f"        {prompt[:140]}...")
+            continue
+
+        if not ref.exists():
+            # Action sheets need the design sheet first; design sheets need the hero sprite.
+            hint = ("run --stage design for this character first"
+                    if kind == "action" else "missing hero sprite")
+            print(f"  [{i}/{len(jobs)}] {tag}  SKIP — ref not found ({ref.name}); {hint}")
+            fail += 1
+            continue
+
+        fpath.parent.mkdir(parents=True, exist_ok=True)
+        print(f"  [{i}/{len(jobs)}] {tag}  ref={ref.name} ({SHEET_SIZE}, {args.quality})")
+        t0 = time.time()
+        img = hero.generate(prompt, SHEET_SIZE, SHEET_BG, args.quality, [ref], high_fidelity=True)
+        if img:
+            fpath.write_bytes(img)
+            _record(manifest, kind, char, action, facing, prompt, ref)
+            MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
+            done += 1
+            print(f"    OK ({len(img)//1024}KB, {round(time.time()-t0)}s)")
+        else:
+            fail += 1
+        time.sleep(0.3)
+
+    print(f"\nDone: {done} generated, {skip} existing, {fail} failed/skipped")
+    if not args.dry_run:
+        print(f"Manifest: {MANIFEST_PATH}")
+
+
+if __name__ == "__main__":
+    main()
