@@ -33,6 +33,7 @@ ROOM = OUT / "room.png"
 FLOOR = OUT / "floor.png"
 ITEMS = OUT / "items_sheet.png"
 BARE = OUT / "room_bare.png"
+BLOOD = OUT / "room_blood.png"
 
 # Step 2b: the EMPTY room — remove furniture/rug but keep room.png's *exact* floor,
 # walls, perspective and lighting (high fidelity).  This is "the floor from the image"
@@ -45,6 +46,23 @@ BARE_PROMPT = (
     "gaslight lighting EXACTLY as in the reference image — change nothing except "
     "removing the furniture and rug. An empty room from the same overhead angle, "
     "no furniture, no rug, no objects, no people, no text, no border"
+)
+
+# Blood pass (Mark): take the approved room.png and add the crime scene IN PLACE at high
+# fidelity — a floor puddle by the desk/chair plus stains on the writing desk and chair —
+# while keeping every other pixel (furniture, layout, perspective, lighting) identical.
+BLOOD_PROMPT = (
+    "Show this EXACT same room, completely identical to the reference image in every "
+    "detail: the same carved-wood bed, the writing desk and wooden chair by the window, "
+    "the bookshelf, wardrobe, dresser, nightstands and oil lamps, the patterned rug, the "
+    "wood-plank floor, the walls, window and curtains, all in the same positions, with the "
+    "exact same overhead perspective, tilt and warm amber gaslight lighting. Change NOTHING "
+    "except adding a grisly crime scene: a dark crimson blood puddle pooled on the wood "
+    "floor beside the writing desk and the chair, dark red blood smears and spatter across "
+    "the top of the writing desk, and blood soaked into the seat and slatted back of the "
+    "wooden chair. The blood is fresh, dark and glistening, painted in the same warm "
+    "painterly style as the room. Everything else stays exactly as in the reference image. "
+    "No body, no people, no text, no border"
 )
 
 # Step 1: feed the pipeline's own background/topdown machinery (lead/tail + BG_TOPDOWN,
@@ -144,6 +162,21 @@ def step2b_bare() -> None:
     print(f"  OK -> {BARE} ({len(img)//1024}KB)")
 
 
+def step_blood() -> None:
+    """Add the crime-scene blood to room.png in place (high fidelity), keeping the rest
+    of the room pixel-identical.  Output room_blood.png becomes the IntroRoom backdrop."""
+    _ensure_key()
+    if not ROOM.exists():
+        sys.exit("  need room.png first (run step 1)")
+    print("  STEP blood  ref=room.png fid=high")
+    print(f"  prompt: {BLOOD_PROMPT}")
+    img = g.generate(BLOOD_PROMPT, "1536x1024", "opaque", "high", [ROOM], True)
+    if not img:
+        sys.exit("  STEP blood FAILED")
+    BLOOD.write_bytes(img)
+    print(f"  OK -> {BLOOD} ({len(img)//1024}KB)")
+
+
 def step3_items() -> None:
     _ensure_key()
     if not ROOM.exists():
@@ -165,7 +198,9 @@ if __name__ == "__main__":
         step2_floor()
     elif arg in ("2b", "bare"):
         step2b_bare()
+    elif arg in ("blood",):
+        step_blood()
     elif arg in ("3", "items"):
         step3_items()
     else:
-        sys.exit("usage: klein_room_pipeline.py [1|room | 2|floor | 2b|bare | 3|items]")
+        sys.exit("usage: klein_room_pipeline.py [1|room | 2|floor | 2b|bare | blood | 3|items]")

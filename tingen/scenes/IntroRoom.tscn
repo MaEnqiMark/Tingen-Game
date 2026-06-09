@@ -1,212 +1,157 @@
-[gd_scene load_steps=28 format=3 uid="uid://b1tngnintro001"]
+[gd_scene load_steps=20 format=3 uid="uid://b1tngnintro001"]
 
 [ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="player"]
 [ext_resource type="PackedScene" path="res://scenes/Interactable.tscn" id="interactable"]
-[ext_resource type="TileSet" path="res://assets/wood_floor_tileset.tres" id="woodts"]
-[ext_resource type="Script" path="res://src/FloorTiler.gd" id="floortiler"]
-[ext_resource type="Texture2D" path="res://assets/props/antigonus_notebook_0.png" id="icon_notebook"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/klein_room.png" id="klein_room"]
 [ext_resource type="Texture2D" path="res://assets/props/revolver_0.png" id="icon_gun"]
-[ext_resource type="Texture2D" path="res://assets/props/cracked_mirror_0.png" id="icon_mirror"]
 [ext_resource type="Texture2D" path="res://assets/props/door_wood_0.png" id="icon_door"]
-[ext_resource type="PackedScene" path="res://scenes/Prop.tscn" id="prop"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_bed.png" id="icon_bed"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_desk.png" id="icon_desk"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_bookshelf.png" id="icon_bookshelf"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_lamp.png" id="icon_lamp"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_cabinet.png" id="icon_cabinet"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_wardrobe.png" id="icon_wardrobe"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_nightstand.png" id="icon_nightstand"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_chair.png" id="icon_chair"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_rug.png" id="icon_rug"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_vanity.png" id="icon_vanity"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_chest.png" id="icon_chest"]
-[ext_resource type="Texture2D" path="res://assets/props/klein_picture.png" id="icon_picture"]
 [ext_resource type="Texture2D" path="res://assets/backgrounds/klein_bedroom.png" id="klein_bedroom"]
 [ext_resource type="Script" path="res://src/IntroCard.gd" id="introcard"]
 [ext_resource type="Texture2D" path="res://assets/ui/vignette.png" id="vignette"]
-[ext_resource type="Texture2D" path="res://assets/props/blood_pool_0.png" id="icon_blood"]
 
 [sub_resource type="RectangleShape2D" id="wall_h"]
 size = Vector2(896, 16)
 
 [sub_resource type="RectangleShape2D" id="wall_v"]
-size = Vector2(16, 560)
+size = Vector2(16, 597)
+
+[sub_resource type="RectangleShape2D" id="s_desk"]
+size = Vector2(155, 70)
+
+[sub_resource type="RectangleShape2D" id="s_chair"]
+size = Vector2(80, 67)
+
+[sub_resource type="RectangleShape2D" id="s_shelf"]
+size = Vector2(83, 105)
+
+[sub_resource type="RectangleShape2D" id="s_ns1"]
+size = Vector2(105, 70)
+
+[sub_resource type="RectangleShape2D" id="s_bed"]
+size = Vector2(204, 265)
+
+[sub_resource type="RectangleShape2D" id="s_ward"]
+size = Vector2(174, 114)
+
+[sub_resource type="RectangleShape2D" id="s_dress"]
+size = Vector2(126, 134)
+
+[sub_resource type="RectangleShape2D" id="s_ns2"]
+size = Vector2(95, 85)
+
+[sub_resource type="RectangleShape2D" id="s_chest"]
+size = Vector2(110, 75)
 
 [node name="IntroRoom" type="Node2D"]
-y_sort_enabled = true
-
-[node name="Ambient" type="CanvasModulate" parent="."]
-color = Color(0.86, 0.78, 0.66, 1)
+y_sort_enabled = false
 
 [node name="Background" type="Polygon2D" parent="."]
-color = Color(0.13, 0.13, 0.16, 1)
-polygon = PackedVector2Array(-160, -80, 1060, -80, 1060, 660, -160, 660)
+color = Color(0.08, 0.07, 0.06, 1)
+polygon = PackedVector2Array(-200, -200, 1100, -200, 1100, 800, -200, 800)
 
-[node name="Floor" type="TileMapLayer" parent="."]
-position = Vector2(0, 0)
-y_sort_enabled = false
-tile_set = ExtResource("woodts")
-script = ExtResource("floortiler")
-cols = 1
-rows = 1
+[node name="RoomPhoto" type="Sprite2D" parent="."]
+centered = false
+texture = ExtResource("klein_room")
+scale = Vector2(0.5833, 0.5833)
 
-[node name="Bloodstain" type="Sprite2D" parent="."]
-position = Vector2(455, 482)
-scale = Vector2(0.5, 0.5)
-texture = ExtResource("icon_blood")
+[node name="Solids" type="StaticBody2D" parent="."]
 
-[node name="Walls" type="StaticBody2D" parent="."]
-
-[node name="Top" type="CollisionShape2D" parent="Walls"]
+[node name="WTop" type="CollisionShape2D" parent="Solids"]
 position = Vector2(448, 8)
 shape = SubResource("wall_h")
 
-[node name="Bottom" type="CollisionShape2D" parent="Walls"]
-position = Vector2(448, 552)
+[node name="WBottom" type="CollisionShape2D" parent="Solids"]
+position = Vector2(448, 589)
 shape = SubResource("wall_h")
 
-[node name="Left" type="CollisionShape2D" parent="Walls"]
-position = Vector2(8, 280)
+[node name="WLeft" type="CollisionShape2D" parent="Solids"]
+position = Vector2(8, 298)
 shape = SubResource("wall_v")
 
-[node name="Right" type="CollisionShape2D" parent="Walls"]
-position = Vector2(888, 280)
+[node name="WRight" type="CollisionShape2D" parent="Solids"]
+position = Vector2(888, 298)
 shape = SubResource("wall_v")
+
+[node name="Desk" type="CollisionShape2D" parent="Solids"]
+position = Vector2(78, 150)
+shape = SubResource("s_desk")
+
+[node name="Chair" type="CollisionShape2D" parent="Solids"]
+position = Vector2(100, 212)
+shape = SubResource("s_chair")
+
+[node name="Bookshelf" type="CollisionShape2D" parent="Solids"]
+position = Vector2(216, 82)
+shape = SubResource("s_shelf")
+
+[node name="Nightstand1" type="CollisionShape2D" parent="Solids"]
+position = Vector2(352, 130)
+shape = SubResource("s_ns1")
+
+[node name="Bed" type="CollisionShape2D" parent="Solids"]
+position = Vector2(390, 167)
+shape = SubResource("s_bed")
+
+[node name="Wardrobe" type="CollisionShape2D" parent="Solids"]
+position = Vector2(685, 85)
+shape = SubResource("s_ward")
+
+[node name="Dresser" type="CollisionShape2D" parent="Solids"]
+position = Vector2(833, 195)
+shape = SubResource("s_dress")
+
+[node name="Nightstand2" type="CollisionShape2D" parent="Solids"]
+position = Vector2(515, 351)
+shape = SubResource("s_ns2")
+
+[node name="Chest" type="CollisionShape2D" parent="Solids"]
+position = Vector2(670, 336)
+shape = SubResource("s_chest")
 
 [node name="Player" parent="." instance=ExtResource("player")]
-position = Vector2(340, 500)
+position = Vector2(415, 470)
 
 [node name="Sprite2D" parent="Player" index="0"]
-scale = Vector2(0.052, 0.052)
+scale = Vector2(0.045, 0.045)
 
 [node name="Camera2D" parent="Player" index="2"]
 enabled = false
 
 [node name="RoomCam" type="Camera2D" parent="."]
-position = Vector2(448, 280)
-zoom = Vector2(1.15, 1.15)
-
-[node name="Rug" type="Sprite2D" parent="."]
-position = Vector2(448, 0)
-scale = Vector2(0.7023, 0.7023)
-offset = Vector2(0, 569.5)
-texture = ExtResource("icon_rug")
-
-[node name="Bed" parent="." instance=ExtResource("prop")]
-position = Vector2(448, 455)
-icon = ExtResource("icon_bed")
-icon_px = 235.0
-solid = true
-footprint = Vector2(160, 46)
-
-[node name="Bookshelf" parent="." instance=ExtResource("prop")]
-position = Vector2(320, 235)
-icon = ExtResource("icon_bookshelf")
-icon_px = 215.0
-solid = true
-footprint = Vector2(100, 24)
-
-[node name="Desk" parent="." instance=ExtResource("prop")]
-position = Vector2(150, 360)
-icon = ExtResource("icon_desk")
-icon_px = 215.0
-solid = true
-footprint = Vector2(120, 30)
-
-[node name="Lamp" parent="." instance=ExtResource("prop")]
-position = Vector2(195, 300)
-z_index = 1
-icon = ExtResource("icon_lamp")
-icon_px = 95.0
-solid = false
-footprint = Vector2(18, 8)
-
-[node name="Chair" parent="." instance=ExtResource("prop")]
-position = Vector2(250, 455)
-rotation = -0.09
-icon = ExtResource("icon_chair")
-icon_px = 150.0
-solid = false
-footprint = Vector2(40, 16)
-
-[node name="Wardrobe" parent="." instance=ExtResource("prop")]
-position = Vector2(725, 258)
-icon = ExtResource("icon_wardrobe")
-icon_px = 250.0
-solid = true
-footprint = Vector2(110, 28)
-
-[node name="Nightstand" parent="." instance=ExtResource("prop")]
-position = Vector2(645, 360)
-rotation = 0.05
-icon = ExtResource("icon_nightstand")
-icon_px = 150.0
-solid = true
-footprint = Vector2(48, 18)
-
-[node name="Cabinet" parent="." instance=ExtResource("prop")]
-position = Vector2(130, 205)
-icon = ExtResource("icon_cabinet")
-icon_px = 150.0
-solid = false
-footprint = Vector2(40, 14)
-
-[node name="Vanity" parent="." instance=ExtResource("prop")]
-position = Vector2(810, 365)
-icon = ExtResource("icon_vanity")
-icon_px = 215.0
-solid = true
-footprint = Vector2(70, 22)
-
-[node name="Chest" parent="." instance=ExtResource("prop")]
-position = Vector2(565, 505)
-rotation = 0.1
-icon = ExtResource("icon_chest")
-icon_px = 115.0
-solid = true
-footprint = Vector2(70, 24)
-
-[node name="Picture" parent="." instance=ExtResource("prop")]
-position = Vector2(480, 120)
-icon = ExtResource("icon_picture")
-icon_px = 95.0
-solid = false
-footprint = Vector2(20, 8)
+position = Vector2(448, 298)
+zoom = Vector2(1.2, 1.2)
 
 [node name="Notebook" parent="." instance=ExtResource("interactable")]
-position = Vector2(150, 296)
-z_index = 1
+position = Vector2(140, 170)
 thought = "这东西不对劲。 (This notebook is wrong. The symbols crawl when I look away.)"
 prompt_text = "Examine notebook"
-tint = Color(0.6, 0.4, 0.85, 1)
+tint = Color(0.6, 0.4, 0.85, 0)
 clue_id = "antigonus_notebook"
-icon = ExtResource("icon_notebook")
 
 [node name="Gun" parent="." instance=ExtResource("interactable")]
-position = Vector2(500, 490)
+position = Vector2(110, 360)
 thought = "是我开的枪？ (Did I fire this? The barrel is still warm.)"
 prompt_text = "Examine revolver"
 tint = Color(0.7, 0.7, 0.74, 1)
 clue_id = "spent_revolver"
 icon = ExtResource("icon_gun")
+icon_px = 46.0
 
 [node name="Mirror" parent="." instance=ExtResource("interactable")]
-position = Vector2(818, 250)
-z_index = 1
+position = Vector2(775, 250)
 thought = "这不是我。 (That is not my face in the glass.)"
 prompt_text = "Look in the mirror"
-tint = Color(0.5, 0.75, 0.85, 1)
+tint = Color(0.5, 0.75, 0.85, 0)
 clue_id = "wrong_reflection"
-icon = ExtResource("icon_mirror")
 
 [node name="Door" parent="." instance=ExtResource("interactable")]
-position = Vector2(95, 488)
+position = Vector2(448, 572)
 prompt_text = "Open the door"
 tint = Color(0.7, 0.55, 0.4, 1)
 target_scene = "res://scenes/City.tscn"
 lead_on_use = "线索：寻找值夜者 (Find the Nighthawks)."
 icon = ExtResource("icon_door")
-icon_px = 96.0
+icon_px = 78.0
 
 [node name="Hint" type="Label" parent="."]
 offset_left = 300.0

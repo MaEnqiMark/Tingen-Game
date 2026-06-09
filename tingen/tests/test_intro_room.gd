@@ -1,7 +1,8 @@
 extends SceneTree
-## Headless wiring check for the Klein's-bedroom slice. Instances IntroRoom and asserts the
-## placeholder flats were replaced with real art (TileMapLayer floor, repointed player +
-## interactable sprites, Y-sorted furniture). Logic (clues/door) is covered by run_tests.gd.
+## Headless wiring check for the Klein's-bedroom slice (flat-image + colliders build).
+## Asserts the placeholder flats were replaced with the real room photo as a Sprite2D
+## background, furniture/wall collision shapes on a Solids StaticBody2D, the repointed
+## player, the room camera, and the 4 interactables with their clue/door logic intact.
 ## Run:  <godot> --headless --path tingen -s tests/test_intro_room.gd
 
 var _passed := 0
@@ -15,25 +16,48 @@ func _init() -> void:
 	await process_frame
 	await process_frame
 
-	_ok(room.get("y_sort_enabled") == true, "IntroRoom root is Y-sorted")
-	_ok(room.get_node_or_null("Floor") is TileMapLayer, "Floor is a TileMapLayer")
+	# Real room art as the flat background sprite (replaces the TileMapLayer + props).
+	var photo: Sprite2D = room.get_node_or_null("RoomPhoto")
+	_ok(photo != null and photo.texture != null
+		and photo.texture.resource_path.ends_with("klein_room.png"),
+		"RoomPhoto -> klein_room.png")
 
+	# Furniture + wall colliders live on one Solids StaticBody2D.
+	var solids: Node = room.get_node_or_null("Solids")
+	_ok(solids is StaticBody2D, "Solids is a StaticBody2D")
+	var shape_count := 0
+	if solids:
+		for c in solids.get_children():
+			if c is CollisionShape2D and c.shape != null:
+				shape_count += 1
+	_ok(shape_count >= 10, "Solids has >=10 collision shapes (got %d)" % shape_count)
+
+	# Player repointed to the detective sprite (asset owned elsewhere; just verify wiring).
 	var psprite: Sprite2D = room.get_node_or_null("Player/Sprite2D")
 	_ok(psprite != null and psprite.texture != null
 		and psprite.texture.resource_path.ends_with("player_detective.png"),
 		"Player sprite -> player_detective.png")
 
-	_check_icon(room, "Notebook", "antigonus_notebook_0.png")
+	_ok(room.get_node_or_null("RoomCam") is Camera2D, "RoomCam is a Camera2D")
+
+	# Interactable logic intact: clue ids + door target unchanged by the art pivot.
+	_check_clue(room, "Notebook", "antigonus_notebook")
+	_check_clue(room, "Gun", "spent_revolver")
+	_check_clue(room, "Mirror", "wrong_reflection")
 	_check_icon(room, "Gun", "revolver_0.png")
-	_check_icon(room, "Mirror", "cracked_mirror_0.png")
 	_check_icon(room, "Door", "door_wood_0.png")
 
-	_ok(room.get_node_or_null("Bed") != null, "Bed prop present")
-	_ok(room.get_node_or_null("Desk") != null, "Desk prop present")
-	_ok(room.get_node_or_null("Bookshelf") != null, "Bookshelf prop present")
+	var door: Node = room.get_node_or_null("Door")
+	_ok(door != null and door.get("target_scene") == "res://scenes/City.tscn",
+		"Door -> City.tscn")
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
+
+func _check_clue(room: Node, node_name: String, expect_clue: String) -> void:
+	var n: Node = room.get_node_or_null(node_name)
+	_ok(n != null and n.get("clue_id") == expect_clue,
+		"%s clue_id == %s" % [node_name, expect_clue])
 
 func _check_icon(room: Node, node_name: String, expect_suffix: String) -> void:
 	var spr: Sprite2D = room.get_node_or_null("%s/Sprite2D" % node_name)
