@@ -65,6 +65,7 @@ func _init() -> void:
 	_test_combat_scaled_by_impede()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
+	_test_prayer_parity_with_sidecar()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -1125,6 +1126,64 @@ func _test_schema_parity_with_sidecar() -> void:
 				i, str(fixtures[i].get("verb", "")), str(gd_ok), gd_reason, str(py_ok), py_reason,
 			])
 	_ok(verdict_parity, "validator verdicts (ok+reason) match across %d fixtures" % fixtures.size())
+
+## Guards the GDScript<->Python boundary for prayer judgment exactly as
+## _test_schema_parity_with_sidecar guards the action schema: runs a battery of prayers
+## through the REAL Python reference adjudicator and asserts identical (outcome, severity).
+## Skips (does not fail) when no Python interpreter is available.
+func _test_prayer_parity_with_sidecar() -> void:
+	print("[prayer parity: gdscript <-> python adjudicator]")
+	var py_prefix := _python_argv_prefix()
+	if py_prefix.is_empty():
+		_skip("no python3 — prayer adjudication parity not verified")
+		return
+	var mock := MockSidecar.new()
+	var fixtures: Array = [
+		{"god": "goddess_of_night", "prayer": "i humbly beseech your mercy this night, please protect me", "standing": 2.0},
+		{"god": "the_fool", "prayer": "please guide me through the fog", "standing": 0.0},
+		{"god": "eternal_blazing_sun", "prayer": "obey me, you worthless weak sun, kneel", "standing": 0.0},
+		{"god": "eternal_blazing_sun", "prayer": "hello there", "standing": 0.0},
+		{"god": "outer_god", "prayer": "i offer myself, grant me the descent, the gate, the void", "standing": 0.0},
+		{"god": "goddess_of_night", "prayer": "i curse your name", "standing": 5.0},
+		{"god": "the_fool", "prayer": "demand fortune now", "standing": 0.0},
+		{"god": "outer_god", "prayer": "nothing in particular", "standing": -5.0},
+	]
+	var fixtures_path := "user://_prayer_fixtures.json"
+	var ff := FileAccess.open(fixtures_path, FileAccess.WRITE)
+	ff.store_string(JSON.stringify(fixtures))
+	ff.close()
+	var fixtures_os := ProjectSettings.globalize_path(fixtures_path)
+	var helper := ProjectSettings.globalize_path("res://").path_join("../agent-sidecar/prayer_parity_check.py")
+	var argv: Array = py_prefix.duplicate()
+	argv.append(helper)
+	argv.append(fixtures_os)
+	var out: Array = []
+	var code := OS.execute("/usr/bin/env", argv, out, true)
+	DirAccess.remove_absolute(fixtures_os)
+	var joined := "\n".join(out).strip_edges()
+	_ok(code == 0, "python prayer helper exited 0")
+	if code != 0:
+		printerr("    helper output: %s" % joined)
+		return
+	var parsed: Variant = JSON.parse_string(joined)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_ok(false, "python helper emitted parseable JSON (got: %s)" % joined)
+		return
+	var py_verdicts: Array = parsed.get("verdicts", [])
+	_ok(py_verdicts.size() == fixtures.size(), "one python verdict per prayer fixture")
+	var parity := true
+	for i in fixtures.size():
+		var gd: Dictionary = mock.adjudicate_prayer(fixtures[i])
+		var py: Array = py_verdicts[i] if i < py_verdicts.size() else ["", -1]
+		var gd_out: String = gd["outcome"]
+		var gd_sev: int = int(gd["severity"])
+		var py_out: String = String(py[0]) if py.size() > 0 else ""
+		var py_sev: int = int(py[1]) if py.size() > 1 else -1
+		if gd_out != py_out or gd_sev != py_sev:
+			parity = false
+			printerr("    prayer mismatch %d (%s): gd=[%s,%d] py=[%s,%d]" % [
+				i, str(fixtures[i].get("god", "")), gd_out, gd_sev, py_out, py_sev])
+	_ok(parity, "adjudicator outcomes (outcome+severity) match across %d prayers" % fixtures.size())
 
 ## Returns the argv prefix to run Python via `/usr/bin/env` (so PATH is searched), or []
 ## if no interpreter is available. Tries python3 then python.
