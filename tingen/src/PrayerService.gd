@@ -56,6 +56,10 @@ func _apply_effects(god_id: String, god: Dictionary, outcome: String, severity: 
 				# The descending god grants power, but you have fed its gate.
 				WorldState.adjust(&"corruption", 12.0)
 				WorldState.adjust(&"cult_readiness", 8.0)
+			else:
+				# Canon invariant: the only pro-cult god IS the 外神. A future god that is
+				# neither opposing nor the outer god would grant with no world-tier effect.
+				push_warning("PrayerService: '%s' granted but is neither opposing nor the outer god" % god_id)
 		"cryptic":
 			_bump_standing(god_id, 1.0)
 		"ignored":
@@ -93,7 +97,8 @@ func _compose_message(god: Dictionary, outcome: String, severity: int) -> String
 			if severity >= 3:
 				return "%s does not suffer your insolence. The world goes white, then black." % god_name
 			return "%s recoils from your words; cold dread floods in where the prayer should have gone." % god_name
-	return ""
+	# Any future/unknown outcome (e.g. an LLM register we don't model yet) falls through here.
+	return "%s answers in a way you cannot parse." % god_name
 
 func reset() -> void:
 	standing.clear()

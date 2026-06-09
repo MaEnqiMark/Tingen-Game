@@ -1030,6 +1030,7 @@ func _test_prayer_service() -> void:
 	_ok(SM.load_game(tmp), "load reads prayer standing")
 	_ok(abs(PS.get_standing("the_fool") - fool_standing) < 0.01, "prayer standing restored")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+	PS.reset()   # leave per-god standing clean for any later test
 
 func _test_schema_parity_with_sidecar() -> void:
 	print("[schema parity: gdscript <-> python sidecar]")
@@ -1143,6 +1144,7 @@ func _test_prayer_parity_with_sidecar() -> void:
 		{"god": "the_fool", "prayer": "please guide me through the fog", "standing": 0.0},
 		{"god": "eternal_blazing_sun", "prayer": "obey me, you worthless weak sun, kneel", "standing": 0.0},
 		{"god": "eternal_blazing_sun", "prayer": "hello there", "standing": 0.0},
+		{"god": "eternal_blazing_sun", "prayer": "please help", "standing": 0.0},   # respect-only, score 2 -> cryptic via score (non-tarot)
 		{"god": "outer_god", "prayer": "i offer myself, grant me the descent, the gate, the void", "standing": 0.0},
 		{"god": "goddess_of_night", "prayer": "i curse your name", "standing": 5.0},
 		{"god": "the_fool", "prayer": "demand fortune now", "standing": 0.0},

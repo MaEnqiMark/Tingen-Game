@@ -46,6 +46,8 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 			agent.remember("reported to %s: %s" % [args.get("to", ""), args.get("info", "")])
 			return {"reported_to": String(args.get("to", ""))}
 		"pray":
+			# An NPC praying is memory-only flavor; only PrayerService.pray() (player-initiated)
+			# runs adjudication and applies mechanical effects.
 			agent.remember("prayed to %s" % args.get("god", ""))
 			return {"prayed_to": String(args.get("god", ""))}
 		"hide":
