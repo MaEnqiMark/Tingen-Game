@@ -596,3 +596,29 @@ ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on
   consistency across the two static loaders beats a lone divergent retry path; a missing `gods.json`
   is a packaging failure the single `push_error` surfaces. *Alt (rejected):* set the flag only after a
   successful parse (diverges from ActionSchema for a case that means the build is broken anyway).
+
+### Implementation notes — prayer panel (Plan F)
+
+- **The god buttons share one `ButtonGroup` (radio set)** → selecting another god clears the previous
+  one, and re-clicking the active god can't toggle it off into an orphaned "nothing selected but a
+  god is still chosen" visual state. *Alts (rejected):* independent toggle buttons with manual
+  bookkeeping (re-click deselects the visual while `_selected` stays set — the state desyncs); plain
+  (non-toggle) buttons (lose the persistent "which god am I petitioning" highlight).
+- **`_build_gods()` clears children with synchronous `free()`, not `queue_free()`** → offering a
+  prayer fires `_render_response → _build_gods` in the same frame the panel may already be rebuilding
+  (the test offers two prayers back-to-back), and `queue_free` defers to end-of-frame, stacking
+  duplicate god buttons — the same B4/C2/D2 double-refresh bug the other panels hit. *Alt (rejected):*
+  `queue_free` (idiomatic for general teardown, but wrong for an immediately-rebuilt list).
+- **The headless panel test uses `load("res://…")`, not `preload`, and registers as a coroutine**
+  (`await _test_prayer_panel()` in `_init`) → under `-s tests/run_tests.gd`, `preload` resolves at
+  parse time *before* autoloads register, so a scene whose script references autoloads via bareword
+  breaks; and a test that `await`s `process_frame` is a coroutine that must be awaited at its call
+  site or it silently no-ops. *Alts (rejected):* `preload` (parse-time autoload crash); calling the
+  async test without `await` (assertions never run).
+
+**End-of-plan review triage (rejected items, with rationale):**
+- **BBCode escaping of `message`/`reason` before they reach the `RichTextLabel`** is deferred, not
+  added now. Every current source of those strings (`PrayerService._compose_message`, the validator
+  reasons) is internal and bracket-free, so there is no live injection surface; escaping today would
+  be dead defensive code. *Alt (rejected, tracked):* escape `[`/`]` at render time — revisit when the
+  real LLM sidecar can return free-form `message` text that might contain BBCode-like markup.
