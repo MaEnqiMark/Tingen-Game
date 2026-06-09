@@ -45,6 +45,9 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 		"report":
 			agent.remember("reported to %s: %s" % [args.get("to", ""), args.get("info", "")])
 			return {"reported_to": String(args.get("to", ""))}
+		"pray":
+			agent.remember("prayed to %s" % args.get("god", ""))
+			return {"prayed_to": String(args.get("god", ""))}
 		"hide":
 			agent.remember("went to ground")
 			return {"hid": true}

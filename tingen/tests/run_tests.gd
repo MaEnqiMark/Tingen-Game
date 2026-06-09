@@ -46,6 +46,7 @@ func _init() -> void:
 	_test_critic_verdicts()
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
+	_test_gods_db()
 	_test_summoning_countdown_and_climax()
 	_test_summoning_progress_readouts()
 	await _test_cult_progress_panel()
@@ -930,6 +931,22 @@ func _test_player_state_save_load() -> void:
 ## independently and could silently diverge. This runs the REAL sidecar code over a
 ## fixture battery and asserts identical verb sets, identical required-args, and identical
 ## (ok, reason) verdicts. Skips (does not fail) when no Python interpreter is available.
+func _test_gods_db() -> void:
+	print("[gods db]")
+	_ok(GodDB.ids().size() == 4, "four gods in the focused pantheon")
+	_ok(GodDB.has("the_fool"), "the Fool is present")
+	var fool: Dictionary = GodDB.get_def("the_fool")
+	_ok(String(fool.get("name_zh", "")) == "愚者", "the Fool carries its 中文 name")
+	_ok((fool.get("domain", []) as Array).size() > 0, "a god lists domain keywords")
+	_ok(GodDB.has("outer_god"), "the descending god (外神) is present")
+	_ok(bool(GodDB.get_def("goddess_of_night").get("opposes_cult", false)), "the Goddess of Night opposes the cult")
+	# pray is now a known, schema-valid verb.
+	_ok(ActionSchema.is_verb("pray"), "pray is a known action verb")
+	_ok(ActionSchema.validate({"actor": "player", "verb": "pray", "args": {"god": "the_fool", "prayer": "guide me"}})["ok"],
+		"well-formed pray validates")
+	_ok(not ActionSchema.validate({"actor": "player", "verb": "pray", "args": {"god": "the_fool"}})["ok"],
+		"pray missing 'prayer' rejected")
+
 func _test_schema_parity_with_sidecar() -> void:
 	print("[schema parity: gdscript <-> python sidecar]")
 
@@ -952,6 +969,8 @@ func _test_schema_parity_with_sidecar() -> void:
 		{"actor": "voss", "verb": "attack", "args": {"target": "pell"}},
 		{"actor": "voss", "verb": "recruit", "args": {"agent": "orin"}},
 		{"actor": "voss", "verb": "report", "args": {"to": "nighthawks", "info": "cult"}},
+		{"actor": "voss", "verb": "pray", "args": {"god": "the_fool", "prayer": "guide me"}},
+		{"actor": "voss", "verb": "pray", "args": {"god": "the_fool"}},   # missing required 'prayer'
 		{"actor": "voss", "verb": "idle", "args": {}},
 		{"actor": "voss", "verb": "teleport", "args": {}},               # unknown verb
 		{"verb": "idle", "args": {}},                                    # missing actor

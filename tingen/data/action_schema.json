@@ -9,6 +9,7 @@
 		"attack": ["target"],
 		"recruit": ["agent"],
 		"report": ["to", "info"],
+		"pray": ["god", "prayer"],
 		"idle": []
 	}
 }
