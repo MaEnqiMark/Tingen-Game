@@ -48,6 +48,7 @@ func _init() -> void:
 	_test_summoning_plan()
 	_test_summoning_countdown_and_climax()
 	await _test_npc_binds_to_agent()
+	_test_inspect_signal()
 	await _test_live_district_wiring()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
@@ -656,6 +657,16 @@ func _test_npc_binds_to_agent() -> void:
 	npc.queue_free()
 	loose.queue_free()
 	await process_frame
+
+func _test_inspect_signal() -> void:
+	print("[inspect signal]")
+	var WS: Object = root.get_node("/root/WorldState")
+	var got: Array = []
+	var cb := func(id: String): got.append(id)
+	WS.inspect_requested.connect(cb)
+	WS.inspect_requested.emit("clerk_voss")
+	_ok(got == ["clerk_voss"], "inspect_requested carries the agent id")
+	WS.inspect_requested.disconnect(cb)
 
 func _test_live_district_wiring() -> void:
 	print("[live district]")

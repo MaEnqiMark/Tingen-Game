@@ -36,6 +36,8 @@ func _ready() -> void:
 	var area: Area2D = $TalkArea
 	area.body_entered.connect(_on_body_entered)
 	area.body_exited.connect(_on_body_exited)
+	area.input_pickable = true
+	area.input_event.connect(_on_talk_area_input)
 	_agent = Agents.get_agent(npc_id)
 
 ## True when this node is the rendered body of a live registry Agent.
@@ -46,6 +48,11 @@ func is_bound() -> bool:
 ## otherwise its scheduled waypoint.
 func steer_goal() -> Vector2:
 	return _agent.position if _agent != null else _target
+
+func _on_talk_area_input(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if Agents.get_agent(npc_id) != null:
+			WorldState.inspect_requested.emit(npc_id)
 
 func _retarget(phase: String) -> void:
 	var wp := NpcDB.waypoint_for(npc_id, phase)

@@ -13,6 +13,7 @@ signal state_changed
 signal lead_changed(text: String)
 signal thought_requested(text: String)
 signal transition_requested(scene_path: String, lead: String)
+signal inspect_requested(agent_id: String)
 
 ## Canonical §8.3 pressures (0..100). `stability` is NOT here — it is derived.
 const PRESSURE_VARS: Array[StringName] = [
