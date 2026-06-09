@@ -17,6 +17,8 @@ texture = ExtResource("2")
 shape = SubResource("shape")
 
 [node name="Prompt" type="Label" parent="."]
+z_index = 100
+z_as_relative = false
 offset_left = -48.0
 offset_top = -56.0
 offset_right = 72.0
