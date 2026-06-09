@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_event_bus()
 	_test_agent_fallback()
 	_test_agent_registry()
+	_test_agent_thought()
 	_test_cult_cell_seeded()
 	_test_substrate_save_load()
 	_test_item_db()
@@ -214,6 +215,19 @@ func _test_agent_registry() -> void:
 	_ok(near.has(orin), "active() finds an agent at its own position")
 	var far: Array = AG.active(orin.position + Vector2(99999, 0), 1.0)
 	_ok(not far.has(orin), "active() excludes agents outside the radius")
+
+func _test_agent_thought() -> void:
+	print("[agent thought]")
+	var a := Agent.new("voss")
+	a.intent = "Complete the warehouse summoning."
+	_ok(a.describe_thought().length() > 0, "idle agent has a synthesized thought")
+	a.current_action = {"verb": "move_to", "args": {"target": "warehouse"}}
+	_ok("warehouse" in a.describe_thought(), "thought reflects the current move target")
+	a.thought = "I sense I am being watched."
+	_ok(a.describe_thought() == "I sense I am being watched.", "explicit thought overrides synthesis")
+	var b := Agent.new()
+	b.from_dict(a.to_dict())
+	_ok(b.thought == a.thought, "thought round-trips through save")
 
 func _test_cult_cell_seeded() -> void:
 	print("[cult cell]")

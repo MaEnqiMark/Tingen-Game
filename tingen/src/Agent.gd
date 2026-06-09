@@ -18,6 +18,7 @@ var position: Vector2 = Vector2.ZERO
 var current_action: Dictionary = {}
 var short_memory: Array = []
 var plan: Array = []
+var thought: String = ""   # latest read-out: set by sidecar/critic, else synthesized
 
 func _init(agent_id: String = "") -> void:
 	id = agent_id
@@ -46,6 +47,26 @@ func remember(entry: String, cap: int = 20) -> void:
 	if short_memory.size() > cap:
 		short_memory = short_memory.slice(short_memory.size() - cap)
 
+## The agent's moment-to-moment read-out for the character card. Returns an explicit
+## thought when one was set (by a sidecar/critic), otherwise synthesizes one from the
+## current action. Distinct from `intent`, which is the long-horizon goal.
+func describe_thought() -> String:
+	if thought != "":
+		return thought
+	var verb := String(current_action.get("verb", ""))
+	var args: Dictionary = current_action.get("args", {})
+	match verb:
+		"move_to": return "Making my way to %s." % args.get("target", "somewhere")
+		"talk_to": return "I should have words with %s." % args.get("agent", "them")
+		"gather_item": return "I still need the %s." % args.get("item_id", "supplies")
+		"perform_ritual_step": return "The rite must go on: %s." % args.get("step", "the next step")
+		"recruit": return "Could %s be brought into the fold?" % args.get("agent", "them")
+		"report": return "Voss will want to hear of this."
+		"hide": return "Best I am not seen just now."
+		"flee": return "I have to get clear of %s." % args.get("from", "here")
+		"attack": return "No choice left but to strike."
+		_: return "Keeping to my own business... for now."
+
 func to_dict() -> Dictionary:
 	return {
 		"id": id,
@@ -57,6 +78,7 @@ func to_dict() -> Dictionary:
 		"current_action": current_action.duplicate(true),
 		"short_memory": short_memory.duplicate(),
 		"plan": plan.duplicate(true),
+		"thought": thought,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -71,3 +93,4 @@ func from_dict(d: Dictionary) -> void:
 	current_action = (d.get("current_action", {}) as Dictionary).duplicate(true)
 	short_memory = (d.get("short_memory", []) as Array).duplicate()
 	plan = (d.get("plan", []) as Array).duplicate(true)
+	thought = String(d.get("thought", thought))
