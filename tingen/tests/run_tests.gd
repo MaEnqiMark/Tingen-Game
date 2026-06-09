@@ -48,6 +48,7 @@ func _init() -> void:
 	_test_summoning_plan()
 	_test_summoning_countdown_and_climax()
 	_test_summoning_progress_readouts()
+	await _test_cult_progress_panel()
 	await _test_npc_binds_to_agent()
 	_test_inspect_signal()
 	await _test_character_card_opens()
@@ -652,6 +653,30 @@ func _test_summoning_progress_readouts() -> void:
 	SP.add_impede(40.0)
 	_ok(SP.interference_band() == "heavy", "large impede = heavy band")
 	SP.reset()
+
+func _test_cult_progress_panel() -> void:
+	print("[cult panel]")
+	var SP: Object = root.get_node("/root/SummoningPlan"); SP.reset()
+	var EB: Object = root.get_node("/root/EventBus"); EB.clear()
+	var panel = load("res://ui/CultProgressPanel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "panel hidden by default")
+	SP.countdown_beats = SP.START_COUNTDOWN / 2
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "panel toggles visible")
+	_ok(is_equal_approx(panel.get_node("Margin/Body/Closeness/Bar").value, 50.0), "closeness bar at 50%")
+	EB.emit_event("agent_action", {"actor": "clerk_voss", "verb": "perform_ritual_step"})
+	EB.emit_event("player_sabotage", {"actor": "player", "item": "candle"})
+	var joined := ""
+	for line in panel.public_event_lines():
+		joined += String(line) + "\n"
+	_ok("player sabotage" in joined, "public player event is listed")
+	_ok(not ("perform_ritual_step" in joined), "secret agent_action is excluded")
+	panel.queue_free()
+	await process_frame
+	SP.reset(); EB.clear()
 
 func _test_npc_binds_to_agent() -> void:
 	print("[npc bind]")
