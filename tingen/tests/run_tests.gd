@@ -56,6 +56,7 @@ func _init() -> void:
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
+	_test_occult_tool_views()
 	_test_player_actions()
 	_test_combat_scaled_by_impede()
 	_test_player_state_save_load()
@@ -816,6 +817,22 @@ func _test_occult_other_tools() -> void:
 	OTM.use("gray_fog")
 	_ok(OTM.can_use("gray_fog") == false, "gray fog refused after 3 uses")
 	_ok(OTM.use("gray_fog").get("ok", false) == false, "gray fog 4th use blocked")
+
+func _test_occult_tool_views() -> void:
+	print("[occult tool views]")
+	var OTM: Object = root.get_node("/root/OccultToolManager")
+	var views: Array = OTM.tool_views()
+	_ok(views.size() == 4, "four occult tools surfaced")
+	var div: Variant = null
+	for v in views:
+		if v["id"] == "divination":
+			div = v
+	_ok(div != null, "divination present")
+	_ok(String(div["name"]) == "Divination", "name surfaced")
+	_ok(String(div["description"]) != "", "description surfaced")
+	_ok(is_equal_approx(float(div["cost"]["fatigue"]), 8.0), "fatigue cost surfaced")
+	_ok((div["cost"]["items"] as Dictionary).has("candle"), "ingredient cost surfaced")
+	_ok(div.has("can_use") and div.has("uses_left"), "availability fields surfaced")
 
 func _test_player_actions() -> void:
 	print("[player actions]")

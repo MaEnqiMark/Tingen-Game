@@ -55,6 +55,25 @@ func use(id: String) -> Dictionary:
 		EventBus.emit_event("player_occult", {"actor": "player", "tool": id, "mislead": res.get("mislead", false)})
 	return res
 
+## UI-facing snapshot of every tool: name, usage text, what it requires and costs, how many
+## uses remain and whether it can be used right now. Sorted by name for a stable panel.
+func tool_views() -> Array:
+	var out: Array = []
+	for id in _tools.keys():
+		var t: OccultTool = _tools[id]
+		out.append({
+			"id": id,
+			"name": String(t.def.get("name", id)),
+			"description": String(t.def.get("description", "")),
+			"requires_item": String(t.def.get("item_id", "")),
+			"cost": t.compute_cost(),
+			"produces": (t.def.get("produces", {}) as Dictionary).duplicate(true),
+			"uses_left": t.uses_left,
+			"can_use": t.can_use(),
+		})
+	out.sort_custom(func(a, b): return String(a["name"]) < String(b["name"]))
+	return out
+
 func to_dict() -> Dictionary:
 	var uses: Dictionary = {}
 	for id in _tools.keys():
