@@ -63,3 +63,28 @@ def test_action_prompt_loop_note_only_for_loops():
 def test_action_prompt_facing_up_is_from_behind():
     p = g.build_action_prompt("nighthawk_captain", "walk", "up")
     assert "from behind" in p
+
+
+from pathlib import Path
+
+
+def test_output_paths():
+    d = g.output_path("design", "priest", None, None)
+    a = g.output_path("action", "priest", "walk", "side")
+    assert d == g.ANIM_DIR / "priest" / "_design.png"
+    assert a == g.ANIM_DIR / "priest" / "walk_side.png"
+
+
+def test_design_ref_is_hero_sprite():
+    r = g.resolve_ref("design", "bieber_monster")
+    assert r == g.OUT_DIR / "enemies/bieber_monster.png"
+
+
+def test_action_ref_is_design_sheet():
+    r = g.resolve_ref("action", "player_detective")
+    assert r == g.ANIM_DIR / "player_detective" / "_design.png"
+
+
+def test_build_prompt_dispatches_by_kind():
+    assert "model sheet" in g.build_prompt("design", "priest", None, None)
+    assert "8 equal cells" in g.build_prompt("action", "priest", "idle", "down")

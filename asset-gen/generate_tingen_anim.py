@@ -194,3 +194,23 @@ def build_action_prompt(char: str, action: str, facing: str) -> str:
         "Flat plain light-gray background behind every cell, no scenery, no ground shadow, "
         "no text, no numbers, no labels, no outer frame, no border."
     )
+
+
+# ── Paths & refs ──────────────────────────────────────────────────────────────
+def output_path(kind: str, char: str, action: str | None, facing: str | None) -> Path:
+    if kind == "design":
+        return ANIM_DIR / char / "_design.png"
+    return ANIM_DIR / char / f"{action}_{facing}.png"
+
+
+def resolve_ref(kind: str, char: str) -> Path:
+    """Stage A conditions on the hero sprite; Stage B on the char's design sheet."""
+    if kind == "design":
+        return OUT_DIR / ANIM_CAST[char]["ref"]
+    return output_path("design", char, None, None)
+
+
+def build_prompt(kind: str, char: str, action: str | None, facing: str | None) -> str:
+    if kind == "design":
+        return build_design_prompt(char)
+    return build_action_prompt(char, action, facing)
