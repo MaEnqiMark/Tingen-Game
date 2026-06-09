@@ -157,3 +157,40 @@ def iter_anim_jobs(stage: str, character: str | None):
             for action, facings in SHEETS[ch].items():
                 for facing in facings:
                     yield ("action", ch, action, facing)
+
+
+# ── Prompt builders ───────────────────────────────────────────────────────────
+def build_design_prompt(char: str) -> str:
+    c = ANIM_CAST[char]
+    return (
+        f"A top-down RPG character model sheet of {c['desc']}. "
+        "Lay out the SAME character in clearly separated views on one sheet: a front view "
+        "(facing the camera, downward), a back view (facing away, upward), a right-side "
+        "profile view, a head-and-shoulders face close-up, and a small horizontal "
+        "color-palette swatch strip of the costume's key colors. "
+        "Three-quarter top-down RPG camera with a slight high angle, full body standing in "
+        "a neutral pose, consistent proportions and an identical costume across every view. "
+        f"{ANIM_LOOK} "
+        "Flat plain light-gray studio background, evenly lit, no scenery, no props, no "
+        "ground shadow, no text labels, no numbers, no frame, no border."
+    )
+
+
+def build_action_prompt(char: str, action: str, facing: str) -> str:
+    c = ANIM_CAST[char]
+    a = ACTIONS[action]
+    loop_note = (" The pose in the last cell matches the first cell so the strip loops "
+                 "seamlessly.") if a["loop"] else ""
+    return (
+        "A single horizontal sprite-animation strip: one row of EXACTLY 8 equal cells "
+        "separated by thin vertical divider lines, the cells evenly spaced and identical in "
+        "size. "
+        f"The SAME character in every cell — {c['desc']} — drawn at an identical scale on the "
+        f"same ground line, {FACING_TEXT[facing]}, three-quarter top-down RPG camera with a "
+        "slight high angle. "
+        f"Across the 8 frames the character performs a '{action}' action: {a['keyframes']}."
+        f"{loop_note} "
+        f"{ANIM_LOOK} "
+        "Flat plain light-gray background behind every cell, no scenery, no ground shadow, "
+        "no text, no numbers, no labels, no outer frame, no border."
+    )

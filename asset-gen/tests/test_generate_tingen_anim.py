@@ -34,3 +34,32 @@ def test_character_filter():
     jobs = list(g.iter_anim_jobs("all", "player_detective"))
     assert all(j[1] == "player_detective" for j in jobs)
     assert len(jobs) == 13  # 1 design + 12 action
+
+
+def test_design_prompt_content():
+    p = g.build_design_prompt("player_detective")
+    assert "model sheet" in p
+    assert "palette" in p
+    assert "back view" in p
+    assert "NO sepia" in p
+    assert "Klein Moretti" in p
+
+
+def test_action_prompt_has_eight_and_facing_and_keyframes():
+    p = g.build_action_prompt("player_detective", "revolver_fire", "side")
+    assert "8 equal cells" in p
+    assert "right-facing side profile" in p
+    assert "muzzle flash" in p          # from the revolver_fire keyframes
+    assert "NO sepia" in p
+
+
+def test_action_prompt_loop_note_only_for_loops():
+    looped = g.build_action_prompt("priest", "idle", "down")
+    oneshot = g.build_action_prompt("priest", "examine", "down")
+    assert "loops seamlessly" in looped
+    assert "loops seamlessly" not in oneshot
+
+
+def test_action_prompt_facing_up_is_from_behind():
+    p = g.build_action_prompt("nighthawk_captain", "walk", "up")
+    assert "from behind" in p
