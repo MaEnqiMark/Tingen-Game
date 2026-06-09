@@ -495,3 +495,28 @@ ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on
   **standing** lives in `PrayerService` and persists via `SaveManager`. *Alts (rejected):* random /
   weighted-roll outcomes (non-deterministic, untestable, no parity); deriving favor from existing
   pressure vars (couples unrelated systems and isn't per-god).
+
+### Implementation notes — cult progress panel (Plan C)
+
+- **How does the panel convey the threat?** → **Through proxies, never the hidden number:** a
+  closeness bar derived from `countdown_beats / START_COUNTDOWN`, the cell's remaining ritual stock,
+  and a *qualitative* `interference_band()` ("none/minor/significant/heavy") for the player's impede
+  score. `manifestation_strength()` is never shown as a digit. The player reads danger the way the
+  GDD intends — through how close and how supplied the cult looks, not a stat. *Alts (rejected):*
+  surface the raw strength/impede numbers (collapses the "feel the threat through the world" tension
+  into a min-max readout); show only a single percent with no stock/interference breakdown (hides
+  that *the player's own sabotage* is what moves the needle).
+- **How is the public-event feed kept from leaking cult secrets?** → **A default-deny allow-list
+  (`PUBLIC_TYPES`):** only whitelisted EventBus types render; the cult's `agent_action` /
+  `agent_action_amended` and the runtime's `action_rejected` / `action_vetoed` / `directive_rejected`
+  reasoning are excluded *by construction*, so any new secret type added to `AgentRuntime` later
+  cannot leak without an explicit opt-in. *Alts (rejected):* a deny-list of secret types (the unsafe
+  inversion — a newly-added secret event is public until someone remembers to blacklist it); no
+  filter, formatting every event (hands the player the cult's private move log, defeating the whole
+  "never exposed by chance" premise). Non-emitted public categories (`event`, `world_pressure`) are
+  pre-allowed and annotated, so wiring their emitters later just works.
+- **What drives a refresh?** → **Both `EventBus.event_logged` and `WorldState.state_changed`** while
+  visible, and `_fill()` clears with synchronous `free()` (not `queue_free`) so two refreshes in one
+  frame can't stack duplicate rows. *Alts (rejected):* refresh on EventBus only (the interference
+  band shifts via pressures that don't emit a bus event — the bar would go stale); a polling timer
+  (wasteful, and laggy relative to the beat that just changed the state).
