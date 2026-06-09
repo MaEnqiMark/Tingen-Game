@@ -47,6 +47,7 @@ func _init() -> void:
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_gods_db()
+	_test_prayer_adjudication()
 	_test_summoning_countdown_and_climax()
 	_test_summoning_progress_readouts()
 	await _test_cult_progress_panel()
@@ -946,6 +947,31 @@ func _test_gods_db() -> void:
 		"well-formed pray validates")
 	_ok(not ActionSchema.validate({"actor": "player", "verb": "pray", "args": {"god": "the_fool"}})["ok"],
 		"pray missing 'prayer' rejected")
+
+func _test_prayer_adjudication() -> void:
+	print("[prayer adjudication]")
+	var mock := MockSidecar.new()
+	# Disrespect -> punished, regardless of god.
+	var p := mock.adjudicate_prayer({"god": "eternal_blazing_sun", "prayer": "obey me, worthless sun", "standing": 0.0})
+	_ok(p["outcome"] == "punished", "insult + command -> punished")
+	_ok(String(p["outcome_zh"]) == "惩罚", "punished carries its 中文 label")
+	_ok(int(p["severity"]) >= 1, "punishment has nonzero severity")
+	# The Fool always answers obliquely -> cryptic.
+	var f := mock.adjudicate_prayer({"god": "the_fool", "prayer": "please guide me", "standing": 0.0})
+	_ok(f["outcome"] == "cryptic", "the Fool answers in the cryptic register")
+	# Respectful, domain-aligned, decent standing -> granted.
+	var g := mock.adjudicate_prayer({"god": "goddess_of_night", "prayer": "i humbly beseech your mercy this night, please protect me", "standing": 2.0})
+	_ok(g["outcome"] == "granted", "respectful domain-aligned prayer with standing -> granted")
+	# Bland prayer to an indifferent god at zero standing -> ignored.
+	var i := mock.adjudicate_prayer({"god": "eternal_blazing_sun", "prayer": "hello there", "standing": 0.0})
+	_ok(i["outcome"] == "ignored", "an empty prayer goes unanswered")
+	# Determinism: same input -> same verdict.
+	var g2 := mock.adjudicate_prayer({"god": "goddess_of_night", "prayer": "i humbly beseech your mercy this night, please protect me", "standing": 2.0})
+	_ok(g2["outcome"] == g["outcome"] and int(g2["severity"]) == int(g["severity"]), "adjudication is deterministic")
+	# Bridge routes adjudication to the active client.
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	SB.set_client(mock)
+	_ok(SB.adjudicate_prayer({"god": "the_fool", "prayer": "guide me"})["outcome"] == "cryptic", "bridge routes prayer adjudication")
 
 func _test_schema_parity_with_sidecar() -> void:
 	print("[schema parity: gdscript <-> python sidecar]")

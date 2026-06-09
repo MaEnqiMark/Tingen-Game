@@ -20,3 +20,8 @@ func propose(snapshots: Array) -> Array:
 	if client == null:
 		return []
 	return client.propose(snapshots)
+
+func adjudicate_prayer(request: Dictionary) -> Dictionary:
+	if client == null:
+		return {"god": String(request.get("god", "")), "outcome": "ignored", "outcome_zh": "无应", "severity": 0, "score": 0}
+	return client.adjudicate_prayer(request)

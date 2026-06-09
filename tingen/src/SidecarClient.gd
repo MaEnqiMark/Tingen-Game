@@ -17,3 +17,12 @@ func propose(snapshots: Array) -> Array:
 	for s in snapshots:
 		out.append({"actor": String((s as Dictionary).get("agent_id", "")), "verb": "idle", "args": {}})
 	return out
+
+## Adjudicate a player's prayer. `request` carries { god, prayer, standing }. Returns
+## { god, outcome, outcome_zh, severity, score }. Base is a neutral "ignored"; MockSidecar
+## models the four canon outcomes deterministically and a future HttpSidecar defers to the LLM.
+func adjudicate_prayer(request: Dictionary) -> Dictionary:
+	return {
+		"god": String(request.get("god", "")),
+		"outcome": "ignored", "outcome_zh": "无应", "severity": 0, "score": 0,
+	}
