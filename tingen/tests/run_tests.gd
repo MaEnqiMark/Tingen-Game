@@ -48,6 +48,7 @@ func _init() -> void:
 	_test_summoning_plan()
 	_test_gods_db()
 	_test_prayer_adjudication()
+	_test_prayer_service()
 	_test_summoning_countdown_and_climax()
 	_test_summoning_progress_readouts()
 	await _test_cult_progress_panel()
@@ -972,6 +973,62 @@ func _test_prayer_adjudication() -> void:
 	var SB: Object = root.get_node("/root/SidecarBridge")
 	SB.set_client(mock)
 	_ok(SB.adjudicate_prayer({"god": "the_fool", "prayer": "guide me"})["outcome"] == "cryptic", "bridge routes prayer adjudication")
+
+func _test_prayer_service() -> void:
+	print("[prayer service]")
+	var PS: Object = root.get_node("/root/PrayerService")
+	var WS: Object = root.get_node("/root/WorldState")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var OV: Object = root.get_node("/root/Overseer")
+	var EB: Object = root.get_node("/root/EventBus")
+	var SB: Object = root.get_node("/root/SidecarBridge")
+	SB.set_client(MockSidecar.new())   # deterministic adjudication
+	PS.reset(); SP.reset(); OV.reset(); EB.clear()
+
+	# Unknown god is rejected cleanly.
+	_ok(PS.pray("no_such_god", "hi")["ok"] == false, "praying to an unknown god is rejected")
+
+	# Granted by an opposing god: impedes the descent, eases fatigue, raises standing,
+	# and marks the player involved.
+	WS.set_pressure(&"fatigue", 60.0)
+	var impede_before: float = SP.impede_score
+	var g: Dictionary = PS.pray("goddess_of_night", "i humbly beseech your mercy this night, please protect me")
+	_ok(g["ok"] and g["outcome"] == "granted", "respectful night prayer is granted")
+	_ok(SP.impede_score > impede_before, "an opposing god's favor impedes the summoning")
+	_ok(WS.get_pressure(&"fatigue") < 60.0, "granted boon eases fatigue")
+	_ok(PS.get_standing("goddess_of_night") > 0.0, "standing rises after a granted prayer")
+	_ok(OV.allows_exposure(), "praying marks the player involved")
+	_ok(EB.events("player_prayer").size() >= 1, "prayer logs a player event")
+
+	# Insolence is punished: corruption spikes, standing falls.
+	WS.set_pressure(&"corruption", 0.0)
+	var p: Dictionary = PS.pray("eternal_blazing_sun", "obey me, you worthless weak sun, kneel")
+	_ok(p["outcome"] == "punished", "insolence is punished")
+	_ok(WS.get_pressure(&"corruption") > 0.0, "punishment spikes corruption")
+	_ok(PS.get_standing("eternal_blazing_sun") < 0.0, "standing falls after punishment")
+
+	# Praying to the descending god (外神) grants power but feeds the gate.
+	PS.reset()
+	WS.set_pressure(&"corruption", 0.0)
+	WS.set_pressure(&"cult_readiness", 0.0)
+	var o: Dictionary = PS.pray("outer_god", "i offer myself, grant me the descent, the gate, the void")
+	_ok(o["outcome"] == "granted", "the descending god grants the devoted")
+	_ok(WS.get_pressure(&"cult_readiness") > 0.0, "the descending god's favor advances the summoning")
+	_ok(WS.get_pressure(&"corruption") > 0.0, "praying to the outer god corrupts the supplicant")
+
+	# Standing round-trips through save/load.
+	var SM: Object = root.get_node("/root/SaveManager")
+	PS.reset()
+	PS.pray("the_fool", "please guide me")   # cryptic -> +1 standing
+	var fool_standing: float = PS.get_standing("the_fool")
+	_ok(fool_standing > 0.0, "the Fool's cryptic answer still nudges standing")
+	var tmp := "user://test_prayer.json"
+	_ok(SM.save_game(tmp), "save writes prayer standing")
+	PS.reset()
+	_ok(PS.get_standing("the_fool") == 0.0, "standing cleared before load")
+	_ok(SM.load_game(tmp), "load reads prayer standing")
+	_ok(abs(PS.get_standing("the_fool") - fool_standing) < 0.01, "prayer standing restored")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
 
 func _test_schema_parity_with_sidecar() -> void:
 	print("[schema parity: gdscript <-> python sidecar]")
