@@ -546,3 +546,53 @@ ritual, prayer). Split into six plans (A–F); A is the backbone the rest sit on
   end-of-frame, stacking duplicate rows under exactly this multi-refresh — the B4/C2 bug); rely on
   Inventory signals alone and drop the explicit refresh (a no-ingredient limited-use tool would leave
   a stale "uses left" and an incorrectly-enabled Use button).
+
+### Implementation notes — prayer backend (Plan E)
+
+- **Where does prayer judgment live?** → **A second method on the existing sidecar contract,
+  `adjudicate_prayer(request)`, parallel to the agents' `propose(snapshots)`** — base neutral on
+  `SidecarClient`, deterministic on `MockSidecar`, passthrough on `SidecarBridge`. The real LLM
+  replaces the mock later behind the identical seam, exactly as for agent proposals, so no API key
+  ever enters the engine (祈祷裁决 stays local/deterministic in-engine, quarantined LLM in the
+  sidecar). *Alts (rejected):* a brand-new `PrayerSidecar`/second bridge (a parallel seam to keep in
+  sync for no gain — prayer is "ask the brain to judge," the same shape as `propose`); bake judgment
+  straight into `PrayerService` (couples gameplay orchestration to the nondeterministic brain and
+  loses the mock/LLM swap that keeps CI offline).
+- **How is GDScript↔Python adjudication kept honest?** → **Two byte-exact mirrored deterministic
+  adjudicators (`MockSidecar.adjudicate_prayer` ↔ `agent-sidecar/prayer_adjudicator.py`) reading the
+  same `gods.json`, guarded by a parity test** that runs a fixture battery through both and asserts
+  identical `(outcome, severity)` — the same guard pattern as the action-schema parity test. `wrath`
+  values (1.0/0.4/0.8/0.3) are chosen so `wrath*2` never lands on `.5` (GDScript and Python round
+  `.5` oppositely). *Alts (rejected):* GDScript-only with no Python reference (the LLM sidecar is
+  Python — without a reference the two would silently diverge the day the real adjudicator ships);
+  share the scoring as JSON-config rules both languages interpret (a config interpreter in each
+  language is more surface to drift than the ~30 lines it would parameterize).
+- **Decision order in the scorer** → **disrespect → tarot → grant-threshold → cryptic-threshold →
+  ignored**, checked in that order. Consequences are deliberate: *any* disrespect marker punishes
+  regardless of god or standing (you do not get to insult a god and be granted), and the Fool
+  (`register=="tarot"`) short-circuits to cryptic **before** the grant check, so **the Fool can never
+  grant** no matter the standing — it only ever answers obliquely, matching its canon. *Alts
+  (rejected):* fold disrespect into the numeric score (a high-standing supplicant could then insult a
+  god and still be granted on net score — wrong tone); let the Fool grant at high score (contradicts
+  "answers obliquely, if at all").
+- **PrayerService is an autoload `Node`, not a `class_name`** → so it can use **bare** autoload refs
+  (`WorldState`/`SummoningPlan`/`EventBus`/`SidecarBridge`/`GodDB`/`ActionSchema`) at runtime and
+  join `SaveManager`'s `to_dict`/`from_dict` roster (per-god standing persists). *Alts (rejected):* a
+  `class_name` helper (would need the `_al()` /root dance and can't be an autoload save participant).
+
+**End-of-plan review triage (rejected items, with rationale):**
+- **Substring marker matching** (`"disobey"` contains `"obey"`, etc.) is kept, not upgraded to
+  word-boundary matching. It is *parity-safe* (both languages behave identically) and this scorer is
+  an explicit deterministic stand-in for the LLM, which will replace it; word-boundary matching adds
+  GDScript-regex↔Python-regex drift risk for a placeholder. *Alt (rejected):* regex word boundaries
+  on both sides (new parity hazard for marginal realism on throwaway logic).
+- **The Fool's +1 standing on every non-insulting prayer** is kept (not gated to score-earned
+  cryptic). It is *mechanically inert*: because tarot short-circuits before the grant check, Fool
+  standing never unlocks anything, so "farming" it does nothing — the bump is pure relationship
+  flavor. *Alt (rejected):* zero standing for tarot-forced cryptic (extra branch for no mechanical
+  effect).
+- **`GodDB._ensure_loaded` sets `_loaded=true` before the parse** (so a missing file logs once and
+  returns empty on later calls) is kept because it **mirrors the existing `ActionSchema` loader** —
+  consistency across the two static loaders beats a lone divergent retry path; a missing `gods.json`
+  is a packaging failure the single `push_error` surfaces. *Alt (rejected):* set the flag only after a
+  successful parse (diverges from ActionSchema for a case that means the build is broken anyway).
