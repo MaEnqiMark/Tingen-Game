@@ -49,7 +49,8 @@ func remember(entry: String, cap: int = 20) -> void:
 
 ## The agent's moment-to-moment read-out for the character card. Returns an explicit
 ## thought when one was set (by a sidecar/critic), otherwise synthesizes one from the
-## current action. Distinct from `intent`, which is the long-horizon goal.
+## current action. Distinct from `intent`, which is the long-horizon goal. Always
+## returns a non-empty string, so the card never shows a blank thought line.
 func describe_thought() -> String:
 	if thought != "":
 		return thought
@@ -61,7 +62,7 @@ func describe_thought() -> String:
 		"gather_item": return "I still need the %s." % args.get("item_id", "supplies")
 		"perform_ritual_step": return "The rite must go on: %s." % args.get("step", "the next step")
 		"recruit": return "Could %s be brought into the fold?" % args.get("agent", "them")
-		"report": return "Voss will want to hear of this."
+		"report": return "I must get word to %s." % args.get("to", "my contact")
 		"hide": return "Best I am not seen just now."
 		"flee": return "I have to get clear of %s." % args.get("from", "here")
 		"attack": return "No choice left but to strike."
