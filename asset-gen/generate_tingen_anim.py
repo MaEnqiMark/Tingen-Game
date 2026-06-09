@@ -221,6 +221,13 @@ def _load_manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text()) if MANIFEST_PATH.exists() else {"sheets": []}
 
 
+def _rel(p: Path) -> str:
+    try:
+        return str(p.relative_to(HERE))
+    except ValueError:
+        return str(p)
+
+
 def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path) -> None:
     key = (char, kind, action, facing)
     manifest["sheets"] = [
@@ -229,8 +236,8 @@ def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path) -> No
     ]
     manifest["sheets"].append({
         "character": char, "kind": kind, "action": action, "facing": facing,
-        "path": str(output_path(kind, char, action, facing).relative_to(HERE)),
-        "prompt": prompt, "ref": str(ref.relative_to(HERE)) if ref else None,
+        "path": _rel(output_path(kind, char, action, facing)),
+        "prompt": prompt, "ref": _rel(ref) if ref else None,
         "input_fidelity": "high", "size": SHEET_SIZE, "background": SHEET_BG,
         "frame_count": 1 if kind == "design" else 8, "endpoint": "edits",
     })
@@ -248,7 +255,7 @@ def main() -> None:
     args = ap.parse_args()
 
     jobs = list(iter_anim_jobs(args.stage, args.character))
-    if args.limit:
+    if args.limit is not None:
         jobs = jobs[:args.limit]
     cost = {"low": 0.02, "medium": 0.05, "high": 0.25}.get(args.quality, 0.25)
     print("Tingen Character Animation Generator (gpt-image-1)")
