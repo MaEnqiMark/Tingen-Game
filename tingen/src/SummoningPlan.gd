@@ -8,6 +8,8 @@ extends Node
 const BASE_STRENGTH: float = 100.0
 const MIN_STRENGTH: float = 8.0
 const COUNTDOWN_SETBACK_PER_INGREDIENT: int = 3
+## Beats from the cult's start to the summoning — the denominator for closeness_ratio().
+const START_COUNTDOWN: int = 40
 
 signal countdown_changed(beats_left: int)
 signal summoning_climax(strength: float)
@@ -15,7 +17,7 @@ signal summoning_climax(strength: float)
 var climax_fired: bool = false
 
 ## Default countdown to the summoning, in beats.
-var countdown_beats: int = 40
+var countdown_beats: int = START_COUNTDOWN
 var impede_score: float = 0.0
 ## What the cell has gathered. Sabotage strips from here.
 var ingredients: Dictionary = {"ritual_salt": 3, "consecrated_chalk": 2, "candle": 3}
@@ -44,7 +46,7 @@ func tick_countdown() -> void:
 
 func reset() -> void:
 	climax_fired = false
-	countdown_beats = 40
+	countdown_beats = START_COUNTDOWN
 	impede_score = 0.0
 	ingredients = {"ritual_salt": 3, "consecrated_chalk": 2, "candle": 3}
 	_initial_total = _total_ingredients()
@@ -78,6 +80,26 @@ func manifestation_strength() -> float:
 	var frac: float = float(_total_ingredients()) / float(maxi(1, _initial_total))
 	return clampf(BASE_STRENGTH * frac - impede_score, MIN_STRENGTH, BASE_STRENGTH)
 
+## How close the cult is to the summoning, 0 (just begun) .. 1 (imminent). Setbacks that
+## push countdown_beats back above START_COUNTDOWN clamp the bar back toward 0 — the player
+## sees their interference rewind the clock.
+func closeness_ratio() -> float:
+	return clampf(1.0 - float(countdown_beats) / float(START_COUNTDOWN), 0.0, 1.0)
+
+## Fraction of the starting ritual stock the cell still holds, 0 .. 1.
+func ingredients_ratio() -> float:
+	return clampf(float(_total_ingredients()) / float(maxi(1, _initial_total)), 0.0, 1.0)
+
+## Qualitative band for the hidden impede score — shown as words, never a raw number.
+func interference_band() -> String:
+	if impede_score <= 0.0:
+		return "none"
+	elif impede_score < 15.0:
+		return "minor"
+	elif impede_score < 35.0:
+		return "significant"
+	return "heavy"
+
 func to_dict() -> Dictionary:
 	return {
 		"countdown_beats": countdown_beats,
@@ -88,7 +110,7 @@ func to_dict() -> Dictionary:
 	}
 
 func from_dict(d: Dictionary) -> void:
-	countdown_beats = int(d.get("countdown_beats", 40))
+	countdown_beats = int(d.get("countdown_beats", START_COUNTDOWN))
 	impede_score = float(d.get("impede_score", 0.0))
 	ingredients = (d.get("ingredients", {}) as Dictionary).duplicate(true)
 	_initial_total = int(d.get("initial_total", _total_ingredients()))

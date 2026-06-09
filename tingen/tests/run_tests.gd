@@ -47,6 +47,7 @@ func _init() -> void:
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_summoning_countdown_and_climax()
+	_test_summoning_progress_readouts()
 	await _test_npc_binds_to_agent()
 	_test_inspect_signal()
 	await _test_character_card_opens()
@@ -635,6 +636,21 @@ func _test_summoning_countdown_and_climax() -> void:
 	_ok(beats_reported == [2, 1, 0], "countdown_changed fired only on real decrements, not on the zero/climax tick")
 	SP.summoning_climax.disconnect(cb)
 	SP.countdown_changed.disconnect(cc)
+	SP.reset()
+
+func _test_summoning_progress_readouts() -> void:
+	print("[summoning progress]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	SP.reset()
+	_ok(is_equal_approx(SP.closeness_ratio(), 0.0), "fresh plan = 0 closeness")
+	SP.countdown_beats = SP.START_COUNTDOWN / 2
+	_ok(is_equal_approx(SP.closeness_ratio(), 0.5), "halfway countdown = 0.5 closeness")
+	SP.countdown_beats = 0
+	_ok(is_equal_approx(SP.closeness_ratio(), 1.0), "zero countdown = full closeness")
+	_ok(is_equal_approx(SP.ingredients_ratio(), 1.0), "fresh stock = full ratio")
+	_ok(SP.interference_band() == "none", "no impede = none band")
+	SP.add_impede(40.0)
+	_ok(SP.interference_band() == "heavy", "large impede = heavy band")
 	SP.reset()
 
 func _test_npc_binds_to_agent() -> void:
