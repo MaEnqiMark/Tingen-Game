@@ -40,6 +40,7 @@ func _init() -> void:
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
 	_test_action_commit()
+	_test_commit_sets_thought()
 	_test_agent_runtime_beat()
 	_test_overseer_state()
 	_test_critic_verdicts()
@@ -414,6 +415,15 @@ func _test_action_commit() -> void:
 	# coordinate-string target resolves.
 	ActionCommit.commit({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "100,100"}}, voss)
 	_ok(true, "coordinate target does not error")
+
+func _test_commit_sets_thought() -> void:
+	print("[commit thought]")
+	var a := Agent.new("voss")
+	ActionCommit.commit({"actor": "voss", "verb": "idle", "args": {}, "thought": "All proceeds as foreseen."}, a)
+	_ok(a.describe_thought() == "All proceeds as foreseen.", "commit stores the action's thought")
+	ActionCommit.commit({"actor": "voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, a)
+	_ok(a.thought == "", "an action without a thought clears the stored one")
+	_ok(a.describe_thought().length() > 0, "describe_thought() falls back to synthesis")
 
 func _test_agent_runtime_beat() -> void:
 	print("[agent runtime]")

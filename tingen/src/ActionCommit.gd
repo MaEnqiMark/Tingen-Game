@@ -24,6 +24,7 @@ static func _step() -> float:
 
 static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 	agent.current_action = action.duplicate(true)
+	agent.thought = String(action.get("thought", ""))
 	var verb := String(action.get("verb", ""))
 	var args: Dictionary = action.get("args", {})
 	match verb:
