@@ -67,6 +67,10 @@ func _init() -> void:
 	_test_occult_tool_views()
 	await _test_ritual_panel()
 	_test_player_actions()
+	_test_player_sabotage_any()
+	_test_dialogue_social_influence_effect()
+	_test_orin_persuade_dialogue()
+	_test_dev_console_interference_commands()
 	_test_combat_scaled_by_impede()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
@@ -373,6 +377,14 @@ func _test_mock_sidecar() -> void:
 func _parse_xy(s: String) -> Vector2:
 	var p := s.split(",")
 	return Vector2(float(p[0]), float(p[1]))
+
+## Index of the first option whose label contains `needle`, or -1. Lets dialogue tests find a
+## specific choice (e.g. "Persuade") without hard-coding option order.
+func _option_index_with(options: Array, needle: String) -> int:
+	for i in options.size():
+		if needle in String((options[i] as Dictionary).get("label", "")):
+			return i
+	return -1
 
 func _test_ambient_sidecar() -> void:
 	print("[ambient sidecar]")
@@ -937,6 +949,9 @@ func _test_live_district_wiring() -> void:
 	_ok(street != null, "live district builds a streetscape")
 	_ok(street != null and street.get_child_count() >= 15, "streetscape is richly dressed")
 	_ok(scene.has_warehouse_marker(), "streetscape marks the warehouse (rite site)")
+	# The player's hands-on counter to the rite: a sabotage interactable stands at the warehouse.
+	_ok(scene.has_method("has_sabotage_point") and scene.has_sabotage_point(),
+		"streetscape places a sabotage interactable at the rite site")
 	scene.queue_free()
 	await process_frame
 
@@ -1065,6 +1080,116 @@ func _test_player_actions() -> void:
 	_ok(EB.events("player_social").size() == 1, "social influence logs a player event")
 	# A non-waverer cannot be turned.
 	_ok(PA.social_influence("clerk_voss") == false, "the committed leader cannot be turned")
+
+func _test_player_sabotage_any() -> void:
+	print("[player sabotage_any]")
+	var PA: Object = root.get_node("/root/PlayerActions")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	SP.reset(); EB.clear()
+	# The warehouse interactable gives the player a single "strip the cache" verb — they don't
+	# name an ingredient. sabotage_any picks one of the held items and routes it through sabotage.
+	var total_before: int = SP._total_ingredients()
+	var impede_before: float = SP.impede_score
+	var stripped: String = PA.sabotage_any()
+	_ok(stripped in ["candle", "consecrated_chalk", "ritual_salt"], "sabotage_any strips a real cache ingredient")
+	_ok(SP._total_ingredients() == total_before - 1, "sabotage_any removes exactly one item from the cache")
+	_ok(SP.impede_score > impede_before, "sabotage_any raises impede (it routes through sabotage)")
+	_ok(EB.events("player_sabotage").size() == 1, "sabotage_any logs a player_sabotage event")
+	# Drain the cache, then sabotage_any must no-op cleanly — nothing left to strip.
+	while PA.sabotage_any() != "":
+		pass
+	EB.clear()
+	impede_before = SP.impede_score
+	_ok(PA.sabotage_any() == "", "sabotage_any returns empty when the cache is bare")
+	_ok(SP.impede_score == impede_before, "a no-op sabotage_any does not change impede")
+	_ok(EB.events("player_sabotage").size() == 0, "a no-op sabotage_any logs nothing")
+	SP.reset(); EB.clear()
+
+func _test_dialogue_social_influence_effect() -> void:
+	print("[dialogue social_influence]")
+	var DM: Object = root.get_node("/root/DialogueManager")
+	var AG: Object = root.get_node("/root/Agents")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild(); SP.reset(); EB.clear()
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	_ok(orin.faction == "cult" and orin.role == "scout_waverer", "orin starts as a wavering cultist (precondition)")
+	var impede_before: float = SP.impede_score
+	# A dialogue effect of type social_influence routes through PlayerActions: the waverer is
+	# won over to the player's side and the hidden impede score rises — the diegetic counterpart
+	# to the console/`PA.social_influence` path, so persuasion in conversation actually bites.
+	DM._apply_effect({"type": "social_influence", "agent": "lamplighter_orin"})
+	_ok(orin.faction == "ally", "social_influence dialogue effect turns orin to the player's side")
+	_ok(SP.impede_score > impede_before, "turning the waverer in dialogue raises the hidden impede score")
+	_ok(EB.events("player_social").size() == 1, "the dialogue turn logs a player_social event")
+	AG.rebuild(); SP.reset(); EB.clear()
+
+func _test_orin_persuade_dialogue() -> void:
+	print("[orin persuade dialogue]")
+	var DM: Object = root.get_node("/root/DialogueManager")
+	var AG: Object = root.get_node("/root/Agents")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var ND: Object = root.get_node("/root/NpcDB")
+	AG.rebuild(); SP.reset()
+	# Orin must be wired to his own dialogue tree, otherwise the player can never reach the
+	# persuade option in-world (an NPC with an empty dialogue_id can't be talked to at all).
+	_ok(String(ND.get_def("lamplighter_orin").get("dialogue_id", "")) == "orin_waverer",
+		"orin is wired to the orin_waverer dialogue tree")
+	_ok(DM.trees.has("orin_waverer"), "the orin_waverer dialogue tree is authored")
+	var tree: Dictionary = DM.trees.get("orin_waverer", {})
+	var nodes: Dictionary = tree.get("nodes", {})
+	var root_node: Dictionary = nodes.get(String(tree.get("start", "root")), {})
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	_ok(orin.faction == "cult", "orin starts in the cult (precondition)")
+	# While orin is still a cultist the persuade line is on offer (gated requires_agent_faction).
+	var visible_cult: Array = DM._visible_options(root_node)
+	var idx: int = _option_index_with(visible_cult, "Persuade")
+	_ok(idx >= 0, "the persuade option is visible while orin is a cultist")
+	# Choosing it carries a social_influence effect that turns him to the player's side — the same
+	# verb the console/world use, so the conversation actually flips faction and adds impede.
+	var impede_before: float = SP.impede_score
+	for e in (visible_cult[idx] as Dictionary).get("effects", []):
+		DM._apply_effect(e)
+	_ok(orin.faction == "ally", "choosing the persuade option turns orin to the player's side")
+	_ok(SP.impede_score > impede_before, "persuading orin in conversation raises the impede score")
+	# Once he's turned, the persuade option is gated away — you can't re-persuade an ally, and the
+	# vanishing option reads as the conversation having moved past the moment of doubt.
+	var visible_ally: Array = DM._visible_options(root_node)
+	_ok(_option_index_with(visible_ally, "Persuade") < 0,
+		"the persuade option is hidden once orin is already an ally")
+	AG.rebuild(); SP.reset()
+
+func _test_dev_console_interference_commands() -> void:
+	print("[dev console interference]")
+	var DC: Object = root.get_node("/root/DevConsole")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	var AG: Object = root.get_node("/root/Agents")
+	AG.rebuild(); SP.reset(); EB.clear()
+	# `sabotage <item>` strips that named ingredient through PlayerActions.sabotage — the console
+	# counterpart to the warehouse interactable, for poking the rite without walking there.
+	var salt_before: int = int(SP.ingredients.get("ritual_salt", 0))
+	DC._run("sabotage ritual_salt")
+	_ok(int(SP.ingredients.get("ritual_salt", 0)) == salt_before - 1, "console `sabotage <item>` strips the named ingredient")
+	_ok(EB.events("player_sabotage").size() == 1, "console sabotage logs a player_sabotage event")
+	# `sabotage` with no argument strips whatever the cache still holds (sabotage_any).
+	var total_before: int = SP._total_ingredients()
+	DC._run("sabotage")
+	_ok(SP._total_ingredients() == total_before - 1, "console `sabotage` with no arg strips one held item")
+	_ok(EB.events("player_sabotage").size() == 2, "the bare console sabotage also logs an event")
+	# `turn <agent>` routes through social_influence: the waverer flips, anyone else is refused.
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	_ok(orin.faction == "cult", "orin starts in the cult (precondition)")
+	DC._run("turn lamplighter_orin")
+	_ok(orin.faction == "ally", "console `turn <agent>` turns the waverer to the player's side")
+	_ok(EB.events("player_social").size() == 1, "console turn logs a player_social event")
+	# Turning a committed leader is refused and changes nothing.
+	var voss: Agent = AG.get_agent("clerk_voss")
+	DC._run("turn clerk_voss")
+	_ok(voss.faction == "cult", "console `turn` cannot flip a committed leader")
+	_ok(EB.events("player_social").size() == 1, "a refused console turn logs no new event")
+	AG.rebuild(); SP.reset(); EB.clear()
 
 func _test_combat_scaled_by_impede() -> void:
 	print("[combat]")

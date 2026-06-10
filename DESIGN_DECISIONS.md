@@ -822,3 +822,54 @@ rite into the summoning clock so gathering at the warehouse visibly quickens the
   react); scale the jump by remaining ingredients or impede (extra coupling to tune a number the player only
   ever reads as "how fast is the bar moving" — premature, and the ingredient count already gates *strength*
   at the climax, not *speed*).
+
+### Implementation notes — player interference wiring (post-Plan-F)
+
+Playtest gap: `PlayerActions.sabotage`/`social_influence` were fully tested verbs that fed `SummoningPlan`,
+but *nothing in the running game called them* — no interactable, no dialogue option, no console command.
+The cult could now drive the doomsday clock (see the coupling pass above), yet the player could only
+*watch*: the two counter-moves that decide the climax were unreachable. This pass builds the three reachable
+controls — a warehouse sabotage point, an Orin persuade line, and dev-console commands — all funnelling into
+the same two verbs, so the summoning's outcome becomes player-determined instead of sim-decided.
+
+- **All three controls route through the existing `PlayerActions` verbs; no control re-implements the
+  effect.** Sabotage strips an ingredient and adds impede in exactly one place, turning a waverer flips
+  faction in exactly one place — so the world reacts identically whether the player pressed E at the
+  warehouse, chose a dialogue line, or typed a console command, and the overseer's "player involved" flag
+  lifts the same way for all three. *Alts (rejected):* let each control mutate `SummoningPlan` directly
+  (three copies of the impede/event/setback logic that would drift, and three ways to forget to mark the
+  player involved); add a fourth "interference manager" indirection (premature — the verbs already are the
+  single seam, an extra layer buys nothing for three call sites).
+- **A new `PlayerActions.sabotage_any() -> String` for the warehouse point — a single "spoil the cache"
+  verb that picks a held ingredient deterministically (sorted keys, first) and routes it through
+  `sabotage()`.** The player walking up to the rite shouldn't have to *know* ingredient names; one button
+  strips whatever is there and reports what fell, returning `""` (a clean no-op) once the cache is bare.
+  Naming a specific item stays a *console* affordance, for surgical testing. *Alts (rejected):* hard-code a
+  fixed item id on the interactable (breaks the moment that ingredient is exhausted — the button would
+  silently fail while three others remain); make the world point open a pick-an-ingredient menu (UI weight
+  for a panic-button interaction, and the console already covers the by-name case).
+- **The persuade option gates on a *live agent's current faction* via a new `requires_agent_faction`
+  dialogue gate, not on a clue/flag.** Orin's "[Persuade]" line is visible while `lamplighter_orin.faction
+  == "cult"` and vanishes the instant he's turned — the option tracks the world's actual state, so it's
+  self-consistent no matter which control did the turning (dialogue, console, or a future one). *Alts
+  (rejected):* a `forbids_clue` gate keyed on a "turned" clue (`ClueDB.collect` requires the clue be
+  pre-registered in clues.json, so it would surface on the Investigation Board — persuasion bookkeeping
+  leaking into the detective's evidence wall); a one-shot consumed-option flag local to the dialogue (goes
+  stale if Orin is turned by any other path, leaving a dead "persuade the ally" line on offer).
+- **Orin gets his own `orin_waverer` tree and a non-empty `dialogue_id`; he was previously unreachable.**
+  His npcs.json `dialogue_id` was `""`, so `NPC._can_talk()` was false and the player could never open a
+  conversation — the persuade lever had no door. The tree carries the social_influence effect on two entry
+  points (the blunt opener and after he explains the rite) so the turn is reachable however the player
+  navigates. *Alts (rejected):* graft the persuade option onto an existing NPC's tree (Orin *is* the
+  waverer — the fiction and the `scout_waverer` role gate both point at him); a bespoke persuade UI outside
+  the dialogue system (the dialogue tree already does gated, effect-bearing options — reusing it is free).
+- **The verb logic is TDD'd in the autoloads; the `Interactable._use()` branch and the LiveDistrict spawn
+  are thin scene glue, covered by a `has_sabotage_point()` seam + smoke.** Which item strips, the impede
+  bump, the events, the empty-cache no-op, the faction gate — all asserted at the `PlayerActions`/
+  `DialogueManager` level where they're pure and reproducible. The 3-line `_use()` dispatch and the
+  `_spawn_rite_sabotage_point()` placement are wiring of the same kind as `NPC.gd`'s untested
+  `DialogueManager.start(...)` call. *Alts (rejected):* drive the full Area2D interactable (player body,
+  E-press, `_unhandled_input`) in a headless test (physics/input simulation is brittle and tests Godot, not
+  our logic); leave the placement entirely unverified (a typo'd spawn would ship a warehouse with no
+  reachable sabotage point and no test would notice — the cheap `has_sabotage_point()` seam guards exactly
+  that regression).

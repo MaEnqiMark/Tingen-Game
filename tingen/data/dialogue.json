@@ -45,5 +45,35 @@
 				]
 			}
 		}
+	},
+	"orin_waverer": {
+		"start": "root",
+		"nodes": {
+			"root": {
+				"speaker": "Orin the Lamplighter",
+				"text": "Keep your voice down. The others are at the warehouse already, setting the circle. I'm only the lookout. That's all I am.",
+				"options": [
+					{ "label": "What are they summoning?", "goto": "rite" },
+					{ "label": "[Persuade] You don't have to go through with this.", "goto": "turned", "requires_agent_faction": { "agent": "lamplighter_orin", "faction": "cult" }, "effects": [ { "type": "social_influence", "agent": "lamplighter_orin" } ] },
+					{ "label": "(Leave)", "goto": "end" }
+				]
+			},
+			"rite": {
+				"speaker": "Orin the Lamplighter",
+				"text": "Something that descends. Voss calls it a god; the chalk and the salt and the marked one are just the door. I lit the candles myself. God help me, I lit them.",
+				"effects": [ { "type": "lead", "text": "线索：教徒在铁十字仓库布置降临法阵 (The cult is laying the descent circle at the Iron Cross warehouse)." } ],
+				"options": [
+					{ "label": "[Persuade] Then help me stop it.", "goto": "turned", "requires_agent_faction": { "agent": "lamplighter_orin", "faction": "cult" }, "effects": [ { "type": "social_influence", "agent": "lamplighter_orin" } ] },
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"turned": {
+				"speaker": "Orin the Lamplighter",
+				"text": "...You're right. I won't carry their lamp another night. Tell me what to do — I'll point them the wrong way, slow the salt, whatever it takes.",
+				"options": [
+					{ "label": "Stay quiet and wait for my signal.", "goto": "end" }
+				]
+			}
+		}
 	}
 }

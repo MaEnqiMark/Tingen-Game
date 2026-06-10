@@ -74,7 +74,7 @@ func _run(line: String) -> void:
 	var args := parts.slice(1)
 	match cmd:
 		"help":
-			_log("commands: set <p> <v> | adjust <p> <d> | pressures | refresh | stage | advance | time <h> <m> | event | clue <id> | toast <msg> | save | load")
+			_log("commands: set <p> <v> | adjust <p> <d> | pressures | refresh | stage | advance | time <h> <m> | event | clue <id> | sabotage [item] | turn <agent> | toast <msg> | save | load")
 		"set":
 			if args.size() >= 2:
 				WorldState.set_pressure(StringName(args[0]), float(args[1]))
@@ -105,6 +105,17 @@ func _run(line: String) -> void:
 		"clue":
 			if args.size() >= 1:
 				_log("collect %s: %s" % [args[0], str(ClueDB.collect(args[0]))])
+		"sabotage":
+			if args.size() >= 1:
+				_log("sabotage %s: %s" % [args[0], str(PlayerActions.sabotage(args[0]))])
+			else:
+				var _item := PlayerActions.sabotage_any()
+				_log("sabotaged rite cache: %s" % (_item if _item != "" else "(cache empty)"))
+		"turn":
+			if args.size() >= 1:
+				_log("turn %s: %s" % [args[0], str(PlayerActions.social_influence(args[0]))])
+			else:
+				_log("usage: turn <agent_id>")
 		"toast":
 			_toast(" ".join(args))
 		"save":

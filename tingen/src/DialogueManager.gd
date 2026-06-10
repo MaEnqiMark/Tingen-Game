@@ -91,6 +91,14 @@ func _visible_options(node: Dictionary) -> Array:
 		var req_clue := String(opt.get("requires_clue", ""))
 		if req_clue != "" and not ClueDB.is_collected(req_clue):
 			continue
+		# Gate on a live agent's current faction so options track the world's state, not just
+		# the player's clue log. Orin's "persuade" line stays on offer while he's still "cult"
+		# and vanishes the instant he's turned — you can't re-persuade someone already won over.
+		var req_agent_faction: Dictionary = opt.get("requires_agent_faction", {})
+		if not req_agent_faction.is_empty():
+			var gated: Variant = Agents.get_agent(String(req_agent_faction.get("agent", "")))
+			if gated == null or String(gated.faction) != String(req_agent_faction.get("faction", "")):
+				continue
 		out.append(opt)
 	return out
 
@@ -104,6 +112,10 @@ func _apply_effect(e: Dictionary) -> void:
 			ClueDB.collect(String(e.get("clue", "")))
 		"thought":
 			WorldState.thought_requested.emit(String(e.get("text", "")))
+		"social_influence":
+			# Persuasion in conversation routes through the same player verb the console/world
+			# use, so a wavering cultist talked round actually flips faction and adds impede.
+			PlayerActions.social_influence(String(e.get("agent", "")))
 
 func _end() -> void:
 	active = false

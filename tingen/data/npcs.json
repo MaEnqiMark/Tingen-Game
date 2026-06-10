@@ -30,7 +30,7 @@
 	},
 	"lamplighter_orin": {
 		"name": "Orin the Lamplighter",
-		"dialogue_id": "",
+		"dialogue_id": "orin_waverer",
 		"faction": "cult",
 		"role": "scout_waverer",
 		"intent": "Scout the district while lighting the lamps, reporting movements to Voss. Increasingly doubts what the cell is about to do, and can be turned by someone who reaches him.",

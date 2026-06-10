@@ -13,7 +13,12 @@ extends Node2D
 
 const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const PLAYER_SCENE: PackedScene = preload("res://scenes/Player.tscn")
+const INTERACTABLE_SCENE: PackedScene = preload("res://scenes/Interactable.tscn")
 const DISTRICTS_PATH: String = "res://data/districts.json"
+
+## The warehouse north door, by the rite-door lamp — where the sabotage point stands so the
+## player can reach the cult's gathered cache on foot. Inside ActionCommit.RITE_RADIUS of (420,360).
+const SABOTAGE_POINT: Vector2 = Vector2(420, 352)
 
 # Per-district ground tints by id; districts not listed fall back to GROUND_DISTRICT.
 const DISTRICT_TINTS: Dictionary = {
@@ -43,6 +48,7 @@ func _ready() -> void:
 	_build_streetscape()
 	_spawn_player()
 	_spawn_agents()
+	_spawn_rite_sabotage_point()
 	# Guard assumes at most one LiveDistrict is alive (GameController._swap_world frees
 	# the old world before adding the new one). It also keeps the headless test suite —
 	# which adds this scene to /root directly, bypassing _swap_world — from double-connecting.
@@ -166,6 +172,14 @@ func has_warehouse_marker() -> bool:
 			return true
 	return false
 
+## Test/debug seam: true once the rite-cache sabotage interactable has been placed, so the player
+## has a reachable way to strip the cult's stock by hand.
+func has_sabotage_point() -> bool:
+	for c in get_children():
+		if c.is_in_group("interactable") and bool(c.get("sabotage_cache")):
+			return true
+	return false
+
 # --- Cast -------------------------------------------------------------------------------
 func _spawn_player() -> void:
 	_player = PLAYER_SCENE.instantiate()
@@ -179,6 +193,17 @@ func _spawn_agents() -> void:
 		npc.npc_id = a.id
 		add_child(npc)
 		npc.global_position = a.position
+
+## The player's hands-on counter to the summoning: a sabotage point at the warehouse door. Walk
+## up, press E, and one gathered ingredient is scattered (PlayerActions.sabotage_any) — setting the
+## rite back and weakening the descent. The cult re-gathers, so it is a tug-of-war, not a kill switch.
+func _spawn_rite_sabotage_point() -> void:
+	var node: Node2D = INTERACTABLE_SCENE.instantiate()
+	node.sabotage_cache = true
+	node.prompt_text = "Spoil the rite cache"
+	node.tint = WAREHOUSE_EDGE
+	add_child(node)
+	node.global_position = SABOTAGE_POINT
 
 func _process(_delta: float) -> void:
 	if is_instance_valid(_player):

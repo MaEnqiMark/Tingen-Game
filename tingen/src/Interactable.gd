@@ -17,6 +17,9 @@ extends Area2D
 @export var icon_px: float = 56.0
 @export_file("*.tscn") var target_scene: String = ""
 @export var lead_on_use: String = ""
+## When true, interacting strips one gathered ingredient from the cult's rite cache instead of
+## examining/talking/transitioning — the warehouse "spoil the cache" point the player walks up to.
+@export var sabotage_cache: bool = false
 ## Clue collected on first examine (must match an id in data/clues.json).
 @export var clue_id: String = ""
 ## NPC dialogue tree to open (must match a key in data/dialogue.json).
@@ -61,6 +64,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _use() -> void:
+	if sabotage_cache:
+		_sabotage_rite_cache()
+		return
 	if dialogue_id != "":
 		DialogueManager.start(dialogue_id)
 		return
@@ -73,3 +79,14 @@ func _use() -> void:
 		WorldState.thought_requested.emit(thought)
 	if lead_on_use != "":
 		WorldState.set_lead(lead_on_use)
+
+## Strip one gathered ingredient from the cult's rite cache (PlayerActions.sabotage_any) and
+## narrate the result, so the player feels the rite set back. When the cache is already bare the
+## prompt still works but reports there is nothing left to spoil.
+func _sabotage_rite_cache() -> void:
+	var stripped := PlayerActions.sabotage_any()
+	if stripped != "":
+		WorldState.thought_requested.emit(
+			"I scattered their %s. The rite will have to gather it again." % stripped.replace("_", " "))
+	else:
+		WorldState.thought_requested.emit("Nothing left here worth spoiling — the cache is bare.")
