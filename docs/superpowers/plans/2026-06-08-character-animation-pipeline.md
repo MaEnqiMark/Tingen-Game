@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `asset-gen/generate_tingen_anim.py`, a resumable generator that turns each of 4 characters into one design sheet plus a set of 8-frame action strips (40 sheets total) via gpt-image-1, ready for later slicing into Godot `SpriteFrames`.
+**Goal:** Build `asset-gen/generate_tingen_anim.py`, a resumable generator that turns each of 4 characters into one design sheet plus a set of 8-frame action strips (40 sheets total) via gpt-image-2, ready for later slicing into Godot `SpriteFrames`.
+
+> **Model decision (2026-06-09, see spec §10):** The original plan targeted gpt-image-1. The Klein recipe-tuning pass proved gpt-image-1 cannot lay out a clean 8-cell strip (it scattered 3–6 cells). The pipeline now defaults to **gpt-image-2**, which produces clean 8-cell strips from the design-sheet ref alone. gpt-image-2 rejects `input_fidelity`, so the generator's model-aware `generate()` sends that param only for `--model gpt-image-1` (a comparison fallback). The 4-frame fallback (Task 5 Step 4) was not needed.
 
 **Architecture:** A new standalone script reuses the *low-level plumbing* of `generate_tingen_image2.py` (key loading, the retry/backoff `generate()` API call) by importing it, and adds its own character×action×facing job table, a two-stage prompt builder (Stage A design sheet, Stage B 8-frame strip), wide-strip sizing, and a resumable `manifest_anim.json`. Pure functions (job table, prompt builders, path/skip helpers) are unit-tested with pytest; the actual API generation is run manually and reviewed by eye, Klein first (the recipe-tuning pass) before batching the rest.
 
-**Tech Stack:** Python 3, `requests`, Pillow, pytest 9; OpenAI `/v1/images/edits` (gpt-image-1, multipart with `image[]` refs, `input_fidelity:high`). Reuses `generate_tingen_image2.py`'s `load_key` + `generate`.
+**Tech Stack:** Python 3, `requests`, Pillow, pytest 9; OpenAI `/v1/images/edits` (gpt-image-2 by default, multipart with `image[]` refs; `input_fidelity:high` only on the `--model gpt-image-1` fallback). Reuses `generate_tingen_image2.py`'s `load_key`; uses its own model-aware `generate()`.
 
 **Source spec:** [`docs/superpowers/specs/2026-06-08-character-animation-pipeline-design.md`](../specs/2026-06-08-character-animation-pipeline-design.md)
 

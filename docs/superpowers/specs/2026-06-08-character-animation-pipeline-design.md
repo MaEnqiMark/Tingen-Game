@@ -1,9 +1,10 @@
 # Tingen — Character Animation Pipeline (v1) — Design
 
-Status: approved design, pre-implementation.
-Date: 2026-06-08.
+Status: approved design; implemented (Klein recipe-tuning pass complete).
+Date: 2026-06-08 (model decision updated 2026-06-09 — see §10).
 Scope: generate top-down 4-directional character animation **sheets** for a small
-cast via gpt-image-1, for later slicing into Godot `SpriteFrames`.
+cast via gpt-image-2 (gpt-image-1 was the original plan; see §10), for later
+slicing into Godot `SpriteFrames`.
 
 Grounded in: [`asset-gen/STYLE_GUIDE.md`](../../../asset-gen/STYLE_GUIDE.md) (the
 single source of truth for look/palette/canon), the existing hero generator
@@ -205,14 +206,25 @@ No changes to existing scripts, scenes, or assets in v1.
 consistent-scale 8-cell strip with a flat/transparent background — the inspiration
 sheets are suspiciously tidy and may have been hand-assembled.
 
-**Mitigations:**
+**Resolution (2026-06-09 — the risk materialized, then was solved by a model upgrade):**
+The Klein recipe-tuning pass confirmed the risk on **gpt-image-1**: strips came back
+with 3–6 scattered cells at inconsistent scale, never a clean 8 (the same failure the
+Yumina/Itachi flux experiment documented). Prompt tuning did **not** fix it.
+A/B testing the newly-available **gpt-image-2** produced clean, evenly-spaced, full-body
+8-cell strips with a readable motion arc directly. The pipeline therefore **defaults to
+gpt-image-2**; the design-sheet reference alone holds identity on the newer model.
+Note gpt-image-2 **rejects** the `input_fidelity` parameter (a gpt-image-1-only lever),
+so the generator sends it only when `--model gpt-image-1` is selected (kept as a
+comparison fallback). The 4-frame fallback below was **not** needed.
+
+**Mitigations (retained):**
 - Render strips on a **flat neutral background with explicit frame dividers** so
   cells are findable even if spacing wobbles (robust to slice later).
 - Prompt hard for "8 equal cells, single row, identical scale and ground line,
   same character in every cell."
 - Treat the **Klein run as a recipe-tuning pass** — accept re-rolls; only batch
   the rest once the layout reliably holds.
-- Fallback if one-shot strips prove too unreliable: drop to **4 frames/strip**
+- Fallback (unused) if one-shot strips prove too unreliable: drop to **4 frames/strip**
   (coarser but easier for the model to lay out) before considering the rejected
   per-frame approach.
 

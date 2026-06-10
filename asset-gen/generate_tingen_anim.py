@@ -1,40 +1,53 @@
 #!/usr/bin/env python3
 """
-Tingen Character Animation Sheet Generator — gpt-image-1
+Tingen Character Animation Sheet Generator — gpt-image-2
 ========================================================
 Turns each of a small cast into (A) a design/model sheet and (B) a set of
 8-frame action strips, drawn as a top-down 3/4 RPG character, for later slicing
 into Godot SpriteFrames.
 
-Two stages (gpt-image-1 has NO seed; refs + input_fidelity are the only
-consistency levers — see the design spec, §2):
-  Stage A (design): ref = the approved hero sprite, input_fidelity=high.
-  Stage B (action): ref = the character's Stage-A design sheet, high — so every
-                    action is on-model and consistent across actions.
+MODEL (recipe-tuning result, 2026-06-09): gpt-image-1 could NOT lay out a clean
+8-cell strip — it scattered 3-6 cells at inconsistent scale (the same failure the
+Yumina/Itachi flux experiment documented). gpt-image-2 produces clean, evenly
+spaced, full-body 8-cell strips with a readable motion arc, so this generator
+defaults to gpt-image-2. Note gpt-image-2 does NOT accept the `input_fidelity`
+parameter (a gpt-image-1-only lever); the design-sheet reference alone holds
+identity well on the newer model. `--model gpt-image-1` falls back to the old
+behaviour (input_fidelity=high) for comparison.
+
+Two stages (the image models have NO seed; reference images are the consistency
+lever — see the design spec, §2):
+  Stage A (design): ref = the approved hero sprite.
+  Stage B (action): ref = the character's Stage-A design sheet — so every action
+                    is on-model and consistent across actions.
 
 Each action sheet is ONE image = one horizontal row of 8 equal cells, on a flat
 neutral background with dividers (robust to slice later).
 
-Reuses generate_tingen_image2.py's proven key-loading + retry/backoff API call.
+Reuses generate_tingen_image2.py's key-loading; uses its own model-aware API call.
 
 Usage:
   python3 generate_tingen_anim.py --dry-run                       # plan only
   python3 generate_tingen_anim.py --character player_detective    # Klein, both stages
   python3 generate_tingen_anim.py --stage design                  # all design sheets
   python3 generate_tingen_anim.py --stage action --character priest
+  python3 generate_tingen_anim.py --model gpt-image-1 ...         # old-model fallback
   python3 generate_tingen_anim.py                                 # the whole set (40)
 
-Cost (gpt-image-1 high ≈ $0.25/image): 4 design + 36 action = 40 ≈ $10.
+Cost (high ≈ $0.25/image): 4 design + 36 action = 40 ≈ $10.
 """
 from __future__ import annotations
 
 import sys
 import json
 import time
+import base64
 import argparse
 from pathlib import Path
 
-import generate_tingen_image2 as hero  # reuse load_key + generate (no import side effects)
+import requests
+
+import generate_tingen_image2 as hero  # reuse load_key (no import side effects)
 
 HERE = Path(__file__).resolve().parent
 OUT_DIR = HERE / "out_image2"
@@ -42,7 +55,12 @@ ANIM_DIR = OUT_DIR / "anim"
 MANIFEST_PATH = OUT_DIR / "manifest_anim.json"
 DEFAULT_ENV_FILE = hero.DEFAULT_ENV_FILE
 
-# All sheets are wide strips (8 cells in a row). gpt-image-1's only landscape size.
+API_EDITS = "https://api.openai.com/v1/images/edits"
+# gpt-image-2 lays out clean 8-cell strips (gpt-image-1 scattered them). image-2
+# rejects `input_fidelity`, so we only send that param for gpt-image-1.
+DEFAULT_MODEL = "gpt-image-2"
+
+# All sheets are wide strips (8 cells in a row). The only landscape size.
 SHEET_SIZE = "1536x1024"
 # Flat background so dividers/cells survive for slicing (transparency is unreliable
 # for strips; we matte later if needed).
@@ -182,9 +200,11 @@ def build_action_prompt(char: str, action: str, facing: str) -> str:
     loop_note = (" The pose in the last cell matches the first cell so the strip loops "
                  "seamlessly.") if a["loop"] else ""
     return (
-        "A single horizontal sprite-animation strip: one row of EXACTLY 8 equal cells "
-        "separated by thin vertical divider lines, the cells evenly spaced and identical in "
-        "size. "
+        "A single horizontal sprite-animation strip: one row of EXACTLY 8 equal cells, "
+        "evenly spaced and identical in size, with a slim uniform gutter — a narrow strip of "
+        "empty flat background — between every pair of adjacent cells, and a thin vertical "
+        "divider line centered in each gutter. The character never crosses a gutter or "
+        "touches a divider; each pose sits fully inside its own cell. "
         f"The SAME character in every cell — {c['desc']} — drawn at an identical scale on the "
         f"same ground line, {FACING_TEXT[facing]}, three-quarter top-down RPG camera with a "
         "slight high angle. "
@@ -217,6 +237,64 @@ def build_prompt(kind: str, char: str, action: str | None, facing: str | None) -
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
+def use_input_fidelity(model: str) -> bool:
+    """Only gpt-image-1 accepts input_fidelity; gpt-image-2 rejects it (400)."""
+    return model == "gpt-image-1"
+
+
+def generate(prompt: str, size: str, background: str, quality: str,
+             ref_paths: list[Path], model: str) -> bytes | None:
+    """Model-aware /images/edits call mirroring hero.generate's retry/backoff.
+
+    Sends input_fidelity=high only for gpt-image-1 (gpt-image-2 rejects it).
+    Reads the API key from hero.OPENAI_API_KEY (set in main()).
+    """
+    data = {
+        "model": model,
+        "prompt": prompt,
+        "size": size,
+        "quality": quality,
+        "background": background,
+        "output_format": "png",
+        "n": "1",
+    }
+    if use_input_fidelity(model):
+        data["input_fidelity"] = "high"
+    for attempt in range(4):
+        try:
+            files = [("image[]", (p.name, p.read_bytes(), "image/png")) for p in ref_paths]
+            resp = requests.post(
+                API_EDITS,
+                headers={"Authorization": f"Bearer {hero.OPENAI_API_KEY}"},
+                files=files, data=data, timeout=400,
+            )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            wait = 5 * (attempt + 1)
+            print(f"    network error ({e}) — waiting {wait}s")
+            time.sleep(wait)
+            continue
+
+        if resp.status_code == 429:
+            wait = 15 * (attempt + 1)
+            print(f"    rate limited — waiting {wait}s")
+            time.sleep(wait)
+            continue
+        if resp.status_code != 200:
+            print(f"    ERROR {resp.status_code}: {resp.text[:300]}")
+            if resp.status_code >= 500:
+                time.sleep(5 * (attempt + 1))
+                continue
+            return None
+        try:
+            b64 = resp.json()["data"][0]["b64_json"]
+        except (KeyError, IndexError, ValueError) as e:
+            print(f"    ERROR parsing response: {e}")
+            return None
+        return base64.b64decode(b64)
+    print("    ERROR: retries exhausted")
+    return None
+
+
 def _load_manifest() -> dict:
     return json.loads(MANIFEST_PATH.read_text()) if MANIFEST_PATH.exists() else {"sheets": []}
 
@@ -228,7 +306,7 @@ def _rel(p: Path) -> str:
         return str(p)
 
 
-def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path) -> None:
+def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path, model: str) -> None:
     key = (char, kind, action, facing)
     manifest["sheets"] = [
         e for e in manifest["sheets"]
@@ -238,7 +316,9 @@ def _record(manifest: dict, kind, char, action, facing, prompt, ref: Path) -> No
         "character": char, "kind": kind, "action": action, "facing": facing,
         "path": _rel(output_path(kind, char, action, facing)),
         "prompt": prompt, "ref": _rel(ref) if ref else None,
-        "input_fidelity": "high", "size": SHEET_SIZE, "background": SHEET_BG,
+        "model": model,
+        "input_fidelity": "high" if use_input_fidelity(model) else None,
+        "size": SHEET_SIZE, "background": SHEET_BG,
         "frame_count": 1 if kind == "design" else 8, "endpoint": "edits",
     })
 
@@ -251,6 +331,8 @@ def main() -> None:
     ap.add_argument("--character", choices=list(ANIM_CAST), help="only this cast key")
     ap.add_argument("--limit", type=int, help="cap number of jobs (testing)")
     ap.add_argument("--quality", choices=["low", "medium", "high"], default="high")
+    ap.add_argument("--model", choices=["gpt-image-2", "gpt-image-1"], default=DEFAULT_MODEL,
+                    help="image model (default gpt-image-2; image-1 sends input_fidelity)")
     ap.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE)
     args = ap.parse_args()
 
@@ -258,7 +340,7 @@ def main() -> None:
     if args.limit is not None:
         jobs = jobs[:args.limit]
     cost = {"low": 0.02, "medium": 0.05, "high": 0.25}.get(args.quality, 0.25)
-    print("Tingen Character Animation Generator (gpt-image-1)")
+    print(f"Tingen Character Animation Generator ({args.model})")
     print(f"  output : {ANIM_DIR}")
     print(f"  jobs   : {len(jobs)} sheets @ {args.quality}  (est. ${len(jobs) * cost:.2f})")
     print(f"  mode   : {'DRY RUN' if args.dry_run else 'LIVE'}")
@@ -297,10 +379,10 @@ def main() -> None:
         fpath.parent.mkdir(parents=True, exist_ok=True)
         print(f"  [{i}/{len(jobs)}] {tag}  ref={ref.name} ({SHEET_SIZE}, {args.quality})")
         t0 = time.time()
-        img = hero.generate(prompt, SHEET_SIZE, SHEET_BG, args.quality, [ref], high_fidelity=True)
+        img = generate(prompt, SHEET_SIZE, SHEET_BG, args.quality, [ref], args.model)
         if img:
             fpath.write_bytes(img)
-            _record(manifest, kind, char, action, facing, prompt, ref)
+            _record(manifest, kind, char, action, facing, prompt, ref, args.model)
             MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
             done += 1
             print(f"    OK ({len(img)//1024}KB, {round(time.time()-t0)}s)")
