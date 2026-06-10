@@ -20,7 +20,7 @@ const TYPE_COLORS: Dictionary = {
 	"player_social": Color(0.55, 0.75, 0.9),
 	"player_occult": Color(0.55, 0.75, 0.9),
 	"player_struck_down": Color(0.95, 0.4, 0.4),
-	"combat_resolved": Color(0.95, 0.8, 0.4),
+	"endgame": Color(0.95, 0.8, 0.4),
 	"summoning_climax": Color(0.95, 0.4, 0.4),
 	"sidecar_error": Color(0.95, 0.5, 0.5),
 	"sidecar_proposed": Color(0.5, 0.82, 0.85),

@@ -29,6 +29,9 @@ func _init() -> void:
 	_test_agent_fallback()
 	_test_agent_registry()
 	_test_agent_thought()
+	_test_agent_combat_state()
+	_test_agent_inventory()
+	_test_agent_downed_freeze()
 	_test_cult_cell_seeded()
 	_test_substrate_save_load()
 	_test_item_db()
@@ -45,9 +48,13 @@ func _init() -> void:
 	_test_action_commit()
 	_test_ritual_step_advances_summoning()
 	_test_commit_sets_thought()
+	_test_action_attack()
+	_test_action_gather_item()
+	_test_action_talk_to_rumor()
 	_test_agent_runtime_beat()
 	_test_overseer_state()
 	_test_critic_verdicts()
+	_test_critic_downed_veto()
 	_test_runtime_with_overseer()
 	_test_summoning_plan()
 	_test_gods_db()
@@ -72,6 +79,9 @@ func _init() -> void:
 	_test_orin_persuade_dialogue()
 	_test_dev_console_interference_commands()
 	_test_combat_scaled_by_impede()
+	_test_endgame_resolver()
+	_test_endgame_ending_bands()
+	_test_endgame_autoload()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
@@ -226,6 +236,20 @@ func _test_agent_fallback() -> void:
 	a.remember("saw the player near the warehouse")
 	_ok(a.short_memory.size() == 1, "remember() appends to short memory")
 
+func _test_agent_downed_freeze() -> void:
+	print("[agent downed freeze]")
+	var a: Agent = Agent.new("lamplighter_orin")
+	a.position = Vector2.ZERO
+	# Upright, it steps toward its waypoint (waypoint is non-zero for orin/morning).
+	a.tick_fallback("morning", 100.0)
+	_ok(a.position != Vector2.ZERO, "an upright agent steps toward its waypoint")
+	# Down it, then confirm it no longer drifts no matter how many beats pass.
+	var resting: Vector2 = a.position
+	a.downed = true
+	for _i in range(50):
+		a.tick_fallback("morning", 100.0)
+	_ok(a.position == resting, "a downed agent does not move on tick")
+
 func _test_agent_registry() -> void:
 	print("[agent registry]")
 	var AG: Object = root.get_node("/root/Agents")
@@ -250,6 +274,37 @@ func _test_agent_thought() -> void:
 	var b := Agent.new()
 	b.from_dict(a.to_dict())
 	_ok(b.thought == a.thought, "thought round-trips through save")
+
+func _test_agent_combat_state() -> void:
+	print("[agent combat state]")
+	var a := Agent.new("voss")
+	_ok(a.hp == 100.0 and a.max_hp == 100.0, "new agent starts at full HP")
+	_ok(a.downed == false, "new agent is not downed")
+	a.take_damage(34.0)
+	_ok(a.hp == 66.0, "take_damage subtracts flat damage from HP")
+	_ok(a.downed == false, "an agent above 0 HP is not downed")
+	a.take_damage(100.0)
+	_ok(a.hp == 0.0, "HP clamps at 0 and never goes negative")
+	_ok(a.downed == true, "an agent reduced to 0 HP is downed")
+	a.take_damage(20.0)
+	_ok(a.hp == 0.0, "further damage to a downed agent keeps HP at 0")
+	var b := Agent.new()
+	b.from_dict(a.to_dict())
+	_ok(b.hp == 0.0 and b.downed == true, "hp and downed round-trip through save")
+
+func _test_agent_inventory() -> void:
+	print("[agent inventory]")
+	var a := Agent.new("fishwife_dalia")
+	_ok(a.item_count("ritual_salt") == 0, "a new agent carries nothing")
+	a.add_item("ritual_salt", 2)
+	_ok(a.item_count("ritual_salt") == 2, "add_item adds the given count")
+	a.add_item("ritual_salt")
+	_ok(a.item_count("ritual_salt") == 3, "add_item defaults to one and stacks")
+	a.add_item("candle")
+	_ok(a.item_count("candle") == 1, "a second item is tracked independently")
+	var b := Agent.new()
+	b.from_dict(a.to_dict())
+	_ok(b.item_count("ritual_salt") == 3 and b.item_count("candle") == 1, "inventory round-trips through save")
 
 func _test_cult_cell_seeded() -> void:
 	print("[cult cell]")
@@ -523,6 +578,123 @@ func _test_commit_sets_thought() -> void:
 	_ok(a.thought == "", "an action without a thought clears the stored one")
 	_ok(a.describe_thought().length() > 0, "describe_thought() falls back to synthesis")
 
+func _test_action_attack() -> void:
+	print("[action attack]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild()
+	var voss: Agent = AG.get_agent("clerk_voss")
+	var pell: Agent = AG.get_agent("dockhand_pell")
+	# A strike within reach connects, damages the target, and logs the blow.
+	voss.position = Vector2(400, 300)
+	pell.position = Vector2(410, 300)   # inside ATTACK_RADIUS
+	pell.hp = 100.0
+	pell.downed = false
+	EB.clear()
+	var out: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "attack", "args": {"target": "dockhand_pell"}}, voss)
+	_ok(out.get("hit", false) == true, "a strike in reach connects")
+	_ok(pell.hp < 100.0, "the target loses HP")
+	_ok(EB.events("agent_attacked").size() == 1, "an agent_attacked event is logged")
+	_ok(EB.events("agent_attacked")[0]["data"]["target"] == "dockhand_pell", "the event names the target")
+	# A swing from out of reach is flavor only — no damage, no event.
+	pell.position = Vector2(2000, 2000)
+	var hp_before: float = pell.hp
+	EB.clear()
+	var out_far: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "attack", "args": {"target": "dockhand_pell"}}, voss)
+	_ok(out_far.get("hit", false) == false, "a strike out of reach does not connect")
+	_ok(pell.hp == hp_before, "an out-of-reach target takes no damage")
+	_ok(EB.events("agent_attacked").is_empty(), "no event for an out-of-reach swing")
+	# Enough strikes fell the target and log a downed event exactly once.
+	pell.position = Vector2(410, 300)
+	pell.hp = 100.0
+	pell.downed = false
+	EB.clear()
+	for _i in range(5):
+		ActionCommit.commit({"actor": "clerk_voss", "verb": "attack", "args": {"target": "dockhand_pell"}}, voss)
+	_ok(pell.downed == true, "enough strikes fell the target")
+	_ok(pell.hp == 0.0, "a felled target sits at 0 HP")
+	_ok(EB.events("agent_downed").size() == 1, "the target is reported downed exactly once")
+	# An unknown target is a safe no-op.
+	var out_unknown: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "attack", "args": {"target": "nobody"}}, voss)
+	_ok(out_unknown.get("hit", false) == false, "attacking an unknown target is a no-op")
+
+func _test_action_gather_item() -> void:
+	print("[action gather_item]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild()
+	var dalia: Agent = AG.get_agent("fishwife_dalia")   # cult / logistics
+	dalia.inventory.clear()
+	EB.clear()
+	var out: Dictionary = ActionCommit.commit(
+		{"actor": "fishwife_dalia", "verb": "gather_item", "args": {"item_id": "ritual_salt"}}, dalia)
+	_ok(out.get("added", false) == true, "gathering a known item succeeds")
+	_ok(dalia.item_count("ritual_salt") == 1, "the item lands in the agent's own inventory")
+	_ok(EB.events("item_gathered").size() == 1, "an item_gathered event is logged")
+	_ok(EB.events("item_gathered")[0]["data"]["actor"] == "fishwife_dalia", "the event names the gatherer")
+	# Gathering again stacks in the agent's own inventory.
+	ActionCommit.commit({"actor": "fishwife_dalia", "verb": "gather_item", "args": {"item_id": "ritual_salt"}}, dalia)
+	_ok(dalia.item_count("ritual_salt") == 2, "repeated gathering stacks")
+	# An unknown item is a safe no-op — no inventory change, no event.
+	EB.clear()
+	var out_unknown: Dictionary = ActionCommit.commit(
+		{"actor": "fishwife_dalia", "verb": "gather_item", "args": {"item_id": "moonbeam"}}, dalia)
+	_ok(out_unknown.get("added", false) == false, "gathering an unknown item is a no-op")
+	_ok(dalia.item_count("moonbeam") == 0, "an unknown item is not added")
+	_ok(EB.events("item_gathered").is_empty(), "no event for an unknown item")
+	# gather_item fills the agent's OWN inventory and must NOT touch the cult's shared rite cache.
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	SP.reset()
+	var cache_salt_before: int = int(SP.ingredients.get("ritual_salt", 0))
+	ActionCommit.commit({"actor": "fishwife_dalia", "verb": "gather_item", "args": {"item_id": "ritual_salt"}}, dalia)
+	_ok(int(SP.ingredients.get("ritual_salt", 0)) == cache_salt_before, "gathering does not restock the shared rite cache")
+	SP.reset()
+
+func _test_action_talk_to_rumor() -> void:
+	print("[action talk_to rumor]")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild()
+	var voss: Agent = AG.get_agent("clerk_voss")
+	var orin: Agent = AG.get_agent("lamplighter_orin")
+	voss.position = Vector2(400, 300)
+	orin.position = Vector2(420, 300)   # within TALK_RADIUS
+	orin.short_memory.clear()
+	voss.short_memory.clear()
+	voss.remember("saw the player prowling the harbor")
+	EB.clear()
+	var out: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "talk_to", "args": {"agent": "lamplighter_orin", "topic": "the player"}}, voss)
+	_ok(out.get("shared", false) == true, "a speaker with real knowledge shares it")
+	_ok(orin.short_memory.size() >= 1, "the rumor lands in the listener's memory")
+	_ok("harbor" in String(orin.short_memory[-1]), "the listener hears what the speaker knew")
+	_ok(voss.short_memory.size() >= 1, "the speaker still records the exchange")
+	_ok(EB.events("rumor_spread").size() == 1, "a rumor_spread event is logged")
+	_ok(EB.events("rumor_spread")[0]["data"]["to"] == "lamplighter_orin", "the event names the listener")
+	var dalia: Agent = AG.get_agent("fishwife_dalia")
+	dalia.short_memory.clear()
+	dalia.position = Vector2(400, 300)
+	orin.short_memory.clear()
+	EB.clear()
+	var out_empty: Dictionary = ActionCommit.commit(
+		{"actor": "fishwife_dalia", "verb": "talk_to", "args": {"agent": "lamplighter_orin", "topic": "the player"}}, dalia)
+	_ok(out_empty.get("shared", false) == false, "a speaker with nothing to tell shares nothing")
+	_ok(orin.short_memory.is_empty(), "no rumor lands when the speaker knows nothing")
+	_ok(EB.events("rumor_spread").is_empty(), "no rumor_spread event without real knowledge")
+	voss.short_memory.clear()
+	voss.remember("the warehouse is nearly ready")
+	orin.short_memory.clear()
+	orin.position = Vector2(3000, 3000)
+	EB.clear()
+	var out_far: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "talk_to", "args": {"agent": "lamplighter_orin", "topic": "the rite"}}, voss)
+	_ok(out_far.get("shared", false) == false, "a talk across the district does not carry")
+	_ok(orin.short_memory.is_empty(), "an out-of-reach listener hears nothing")
+	_ok(voss.short_memory.size() >= 1, "the speaker still records trying to talk")
+
 func _test_agent_runtime_beat() -> void:
 	print("[agent runtime]")
 	var AG: Object = root.get_node("/root/Agents")
@@ -615,6 +787,26 @@ func _test_critic_verdicts() -> void:
 	# Ordinary move is always fine.
 	_ok(Critic.review({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)["verdict"] == "approve",
 		"ordinary move approved")
+
+func _test_critic_downed_veto() -> void:
+	print("[critic downed]")
+	var AG: Object = root.get_node("/root/Agents")
+	AG.rebuild()
+	var voss: Agent = AG.get_agent("clerk_voss")  # cult / leader
+	# Upright, the leader acts normally.
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)["verdict"] == "approve",
+		"an upright agent may move")
+	# Felled, every active verb is vetoed — a downed body cannot move, work the rite, or strike.
+	voss.downed = true
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)["verdict"] == "veto",
+		"a downed agent cannot move")
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "perform_ritual_step", "args": {"step": "draw_circle"}}, voss)["verdict"] == "veto",
+		"a downed agent cannot work the rite")
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "attack", "args": {"target": "dockhand_pell"}}, voss)["verdict"] == "veto",
+		"a downed agent cannot attack")
+	# Only idle survives — the one coherent thing a felled agent can do.
+	_ok(Critic.review({"actor": "clerk_voss", "verb": "idle", "args": {}}, voss)["verdict"] == "approve",
+		"a downed agent may still idle")
 
 func _test_runtime_with_overseer() -> void:
 	print("[runtime + overseer]")
@@ -735,6 +927,7 @@ func _test_summoning_countdown_and_climax() -> void:
 	SP.summoning_climax.disconnect(cb)
 	SP.countdown_changed.disconnect(cc)
 	SP.reset()
+	paused = false   # the climax now drives EndGame to pause the tree; clear it for later tests
 
 func _test_summoning_progress_readouts() -> void:
 	print("[summoning progress]")
@@ -789,6 +982,7 @@ func _test_summoning_advance_rite() -> void:
 	SP.summoning_climax.disconnect(cb)
 	SP.countdown_changed.disconnect(cc)
 	SP.reset()
+	paused = false   # the climax now drives EndGame to pause the tree; clear it for later tests
 
 func _test_ritual_step_advances_summoning() -> void:
 	print("[ritual step -> summoning]")
@@ -1214,6 +1408,124 @@ func _test_combat_scaled_by_impede() -> void:
 	# The occult ability hits harder than a basic attack.
 	var enc := CombatEncounter.new(50.0)
 	_ok(enc.OCCULT_DAMAGE > enc.ATTACK_DAMAGE, "occult ability beats a basic attack")
+
+	# --- Retuned scaling. The residual fight only ever runs at strength <= STOP_THRESHOLD (60),
+	# so it must be lethal in the mid-50s and survivable in the low-40s. Enemy HP = 2.5x strength,
+	# enemy damage = 0.40x strength (player unchanged: 100 HP, 18 basic / 30 occult every 3rd round).
+	var probe := CombatEncounter.new(50.0)
+	_ok(is_equal_approx(probe.enemy_max_hp, 125.0), "enemy HP scales at 2.5x strength")
+	_ok(is_equal_approx(probe.enemy_damage, 20.0), "enemy damage scales at 0.40x strength")
+	# Crossover: a strength-55 residual is lethal; a strength-43 residual is survivable. This is
+	# what makes turning Orin (43) the lever that upgrades near-good -> all-good over 2 sabotages (55).
+	_ok(CombatEncounter.new(55.0).auto_resolve()["win"] == false, "strength 55 residual is lethal (near-good)")
+	_ok(CombatEncounter.new(43.0).auto_resolve()["win"] == true, "strength 43 residual is survivable (all-good)")
+
+## The two-gate climax resolver (pure logic). Gate 1: above the stop threshold the descent
+## completes and the city dies (no fight). Gate 2: a stopped descent runs the residual fight,
+## and surviving it is the difference between near-good (you die) and all-good (you live).
+func _test_endgame_resolver() -> void:
+	print("[endgame resolver]")
+	_ok(is_equal_approx(EndGameResolver.STOP_THRESHOLD, 60.0), "stop threshold is 60")
+	# Gate 1 — descent completes above the threshold: the city dies, with no fight.
+	_ok(String(EndGameResolver.resolve(100.0).get("outcome", "")) == "city_dies", "strength 100 (no interference) -> city dies")
+	_ok(String(EndGameResolver.resolve(77.5).get("outcome", "")) == "city_dies", "strength 77.5 (1 sabotage) -> city dies")
+	# Boundary — exactly at the threshold the descent is *stopped*, not a city death.
+	_ok(String(EndGameResolver.resolve(60.0).get("outcome", "")) != "city_dies", "strength 60 is stopped, not a city death")
+	# Gate 2 — a stopped descent runs the residual fight: mid-50s lethal, low-40s survivable.
+	_ok(String(EndGameResolver.resolve(55.0).get("outcome", "")) == "near_good", "strength 55 stopped but lethal -> near-good")
+	_ok(String(EndGameResolver.resolve(43.0).get("outcome", "")) == "all_good", "strength 43 stopped and survived -> all-good")
+	_ok(String(EndGameResolver.resolve(32.5).get("outcome", "")) == "all_good", "strength 32.5 (3 sabotages) -> all-good")
+	# city-dies carries no fight; stopped outcomes carry the fight-result fields.
+	var cd: Dictionary = EndGameResolver.resolve(100.0)
+	_ok(bool(cd.get("win", true)) == false and int(cd.get("rounds", -1)) == 0, "city-dies has no fight (win=false, 0 rounds)")
+	var ag: Dictionary = EndGameResolver.resolve(43.0)
+	_ok(bool(ag.get("win", false)) == true and int(ag.get("rounds", 0)) > 0, "all-good carries a won fight with rounds")
+	_ok(float(ag.get("player_hp_left", 0.0)) > 0.0, "all-good reports surviving HP")
+	_ok(is_equal_approx(float(ag.get("strength", 0.0)), 43.0), "result echoes the resolved strength")
+
+## End-to-end guard over the whole chain: player levers -> manifestation_strength -> ending.
+## This locks the ending *table* so that a future tweak to SABOTAGE_IMPEDE/SOCIAL_IMPEDE, the
+## ingredient counts, or the resolver thresholds can't silently move which ending each play reaches.
+func _test_endgame_ending_bands() -> void:
+	print("[endgame ending bands]")
+	var PA: Object = root.get_node("/root/PlayerActions")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var AG: Object = root.get_node("/root/Agents")
+	var EB: Object = root.get_node("/root/EventBus")
+
+	# No interference: the descent (降临) completes — the whole city dies, with no fight.
+	AG.rebuild(); SP.reset(); EB.clear()
+	_ok(is_equal_approx(SP.manifestation_strength(), 100.0), "no interference -> strength 100")
+	_ok(String(EndGameResolver.resolve(SP.manifestation_strength()).get("outcome", "")) == "city_dies",
+		"no interference -> city dies")
+
+	# Two sabotages stop the descent, but the residual manifestation still kills the player.
+	AG.rebuild(); SP.reset(); EB.clear()
+	PA.sabotage_any(); PA.sabotage_any()
+	_ok(is_equal_approx(SP.manifestation_strength(), 55.0), "2 sabotages -> strength 55")
+	_ok(String(EndGameResolver.resolve(SP.manifestation_strength()).get("outcome", "")) == "near_good",
+		"2 sabotages -> near-good (descent stopped, you die)")
+
+	# Two sabotages PLUS turning Orin (the 邪教 waverer) buys back the player's life.
+	AG.rebuild(); SP.reset(); EB.clear()
+	PA.sabotage_any(); PA.sabotage_any()
+	_ok(PA.social_influence("lamplighter_orin"), "turning Orin succeeds")
+	_ok(is_equal_approx(SP.manifestation_strength(), 43.0), "2 sabotages + turn Orin -> strength 43")
+	_ok(String(EndGameResolver.resolve(SP.manifestation_strength()).get("outcome", "")) == "all_good",
+		"turning Orin upgrades near-good -> all-good")
+
+	# Three sabotages alone also reach the all-good ending.
+	AG.rebuild(); SP.reset(); EB.clear()
+	PA.sabotage_any(); PA.sabotage_any(); PA.sabotage_any()
+	_ok(is_equal_approx(SP.manifestation_strength(), 32.5), "3 sabotages -> strength 32.5")
+	_ok(String(EndGameResolver.resolve(SP.manifestation_strength()).get("outcome", "")) == "all_good",
+		"3 sabotages -> all-good")
+
+	AG.rebuild(); SP.reset(); EB.clear()
+
+## The EndGame autoload: the thin pause + overlay shell over EndGameResolver. Firing the climax
+## signal must drive it to the resolved ending, freeze the world, and log an `endgame` event;
+## restart()/_reset_world_state() must reset the cult plan and lift the freeze. We drive those
+## methods directly (rather than clicking the overlay buttons) and unpause in teardown so the
+## later panel tests still run.
+func _test_endgame_autoload() -> void:
+	print("[endgame autoload]")
+	var EG: Object = root.get_node("/root/EndGame")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	var AG: Object = root.get_node("/root/Agents")
+
+	var reached: Array = []
+	var cb := func(outcome: String, _result: Dictionary): reached.append(outcome)
+	EG.ending_reached.connect(cb)
+
+	# A full-strength descent: reaching the ending dooms the city, freezes the world, logs the event.
+	AG.rebuild(); SP.reset(); EB.clear()
+	paused = false
+	SP.summoning_climax.emit(100.0)
+	_ok(reached.size() == 1 and String(reached[-1]) == "city_dies", "climax at strength 100 -> city_dies ending")
+	_ok(paused, "reaching an ending pauses the world")
+	_ok(EB.events("endgame").size() == 1, "EndGame logs an endgame event")
+
+	# A heavily-interfered descent routes to the all-good ending.
+	paused = false
+	EB.clear()
+	SP.summoning_climax.emit(32.5)
+	_ok(reached.size() == 2 and String(reached[-1]) == "all_good", "climax at strength 32.5 -> all_good ending")
+
+	# _reset_world_state returns the cult plan to defaults (re-arming the summoning); restart lifts the freeze.
+	SP.add_impede(50.0, "test"); SP.remove_ingredient("ritual_salt", 2); SP.climax_fired = true
+	EG._reset_world_state()
+	_ok(is_equal_approx(SP.impede_score, 0.0), "reset clears the summoning impede")
+	_ok(is_equal_approx(SP.manifestation_strength(), 100.0), "reset restores full manifestation strength")
+	_ok(SP.climax_fired == false, "reset re-arms the summoning (climax_fired cleared)")
+	paused = true
+	EG.restart()
+	_ok(paused == false, "restart unpauses the world")
+
+	EG.ending_reached.disconnect(cb)
+	AG.rebuild(); SP.reset(); EB.clear()
+	paused = false
 
 func _test_player_state_save_load() -> void:
 	print("[player state save/load]")

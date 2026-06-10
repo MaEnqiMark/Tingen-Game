@@ -873,3 +873,124 @@ the same two verbs, so the summoning's outcome becomes player-determined instead
   our logic); leave the placement entirely unverified (a typo'd spawn would ship a warehouse with no
   reachable sabotage point and no test would notice — the cheap `has_sabotage_point()` seam guards exactly
   that regression).
+
+### Implementation notes — NPC verbs (talk_to / gather_item / attack, Yumina-modeled, post-Plan-F)
+
+Three of the eleven NPC verbs were stubs: `attack`, `gather_item`, and `talk_to` only wrote a `remember(...)`
+line and returned a flavor dict — they changed nothing in the world. The cult could already drive the
+doomsday clock and the player could already sabotage it, but the *agents* couldn't fight, carry, or pass word.
+This pass gives the three verbs real mechanics, each modeled on how the Yumina reference engine (诡秘 web sim)
+implements its equivalent, then adapted to Tingen's two structural differences: agents are thin and the cast is
+a **fixed, saved roster** (no spawn/despawn). All mechanics stay inside `ActionCommit` (the one place agents
+mutate the world) and announce themselves on the `EventBus`, consistent with the existing `_perform_ritual_step`.
+
+- **`attack` = flat deterministic damage that *downs* (incapacitates) a target, never deletes it.** Yumina's
+  `cast_ability` → `damageEntity` does `hp = clamp(hp - max(0, amount - def), 0, max)` with no RNG/crit, and on
+  zero HP **deletes the entity and rolls loot**. Tingen copies the flat, crit-free damage model (`ATTACK_DAMAGE
+  = 34`, ~3 strikes to fell, proximity-gated at `ATTACK_RADIUS = 64` exactly like the rite is gated at
+  `RITE_RADIUS`), but at zero HP sets `downed = true` instead of deleting. *Alts (rejected):* delete-on-death
+  like Yumina (our roster is fixed and round-trips through save/load — deleting an agent would orphan every
+  `get_agent(id)` reference, the dialogue/critic/overseer that name specific NPCs, and force respawn machinery
+  the slice doesn't have); RNG or crit damage (non-determinism breaks the pure, reproducible verdict/commit
+  contract the whole test suite leans on). Emits `agent_attacked` per connecting blow and `agent_downed` once,
+  the moment a target falls — the felt public signals that combat happened.
+- **`gather_item` fills the *agent's own* inventory and deliberately does NOT restock the cult's shared rite
+  cache.** *(User decision: when offered "restock the shared cache" vs. "build a per-agent inventory," the user
+  chose the per-agent store over my recommendation.)* Each `Agent` now carries a flat `id -> count` dict
+  (`add_item` / `item_count`), mirroring Yumina, where gathering is per-actor fieldwork into a personal store and
+  **no shared cache exists anywhere**. A test asserts a cultist gathering `ritual_salt` leaves
+  `SummoningPlan.ingredients` untouched. *Alts (rejected):* route gathered goods into the cult's shared
+  `SummoningPlan` cache (this was my initial recommendation — rejected by the user, and rightly: it would make
+  every cultist's ambient gathering a silent **anti-sabotage faucet**, refilling exactly what the player worked
+  to strip and quietly erasing the climax lever; Yumina also has no such cache to model); reuse the player-only
+  `Inventory` autoload (that store is the *player's* — agents writing into it would conflate NPC fieldwork with
+  the detective's satchel). Unknown item ids are a safe no-op; emits `item_gathered`.
+- **`talk_to` spreads the speaker's freshest *real* observation to the listener as hearsay, with an
+  anti-hallucination guard.** Yumina's `talk_to_npc` writes a turn-stamped rumor into the **listener's**
+  `heardFromOthers` log (capped), and only if the speaker actually has something observed — it never invents
+  knowledge. Tingen copies both halves: the speaker's most recent `short_memory` entry is captured *before*
+  recording "talked to …" (so the act of talking can't become its own rumor), then appended to the listener's
+  memory as `"heard from <name>: <observation>"`; a speaker with empty memory shares nothing. Proximity-gated at
+  `TALK_RADIUS = 96` (roomier than a blade's reach — conversation carries farther than a strike). This is how
+  knowledge — including the player's exposure — actually travels between agents now, not just flavor. *Alts
+  (rejected):* inject the action's `topic` string as the rumor regardless of what the speaker knows (pure
+  hallucination — agents would "know" things never observed, and exposure could spread from thin air, breaking
+  the no-caught-by-chance invariant); keep it one-way memory-only (the stub state — knowledge never travels, so
+  the cult can never react to what its own scouts saw). Emits `rumor_spread`.
+- **A downed agent is coherently frozen on *both* the propose side and the move side.** `Critic.review` vetoes
+  every verb except `idle` for a `downed` agent, as its first/overriding check (a felled body can't crawl to the
+  rite or swing — this trumps faction/role/interestingness); and `Agent.tick_fallback` early-returns for a
+  downed agent so the cheap scheduled walk can't drift the body around the district. *Alts (rejected):* guard
+  only at commit time and let the brain keep proposing move/attack (the agent would visibly "try," and the log
+  would fill with no-op attempts — incoherent for a downed body); freeze only the fallback walk but leave the
+  Critic open (a live LLM brain could still get a move/attack approved and committed, walking the corpse). The
+  two guards mirror each other so the felled state reads the same whether an agent is on the cheap scheduler or
+  the LLM brain.
+- **All three verbs keep mutation in `ActionCommit` + an `EventBus` emit; no split resolver/mutator.** Yumina
+  separates a pure resolver from a mutator "bridge"; Tingen collapses both into `ActionCommit`, the established
+  single seam (`_perform_ritual_step` already works this way). *Alts (rejected):* fork a pure-resolver/mutator
+  split to mirror Yumina exactly (premature — `ActionCommit` is already the one tested mutation point; a split
+  forks the established pattern and buys nothing for the slice); mutate from the sidecar/brain directly (breaks
+  the validate → review → commit pipeline and the "only ActionCommit changes the world" invariant).
+
+### Implementation notes — endgame endings (two-gate climax + win/lose screen)
+
+The doomsday clock could already hit zero, but the climax was a placebo: `LiveDistrict._on_climax` ran a
+`CombatEncounter` the player *always won*, printed a 4.5s thought banner, and the run just carried on — no
+win/lose state, no screen, no restart. This pass makes the deadline mean something. *(User reframed the canon:
+"if descend happens the entire city dies; the combat only happens after the descend is stopped — so there
+could be a near-good ending where descend is stopped but player dies, and an all-good ending where the player
+lives and descend is stopped.")* That gives three endings, and the design is built backward from them.
+
+- **The climax is a *two-gate* resolver, not one fight.** Gate 1 asks "was the descent (降临) stopped?" by
+  comparing the manifestation strength at the deadline to `STOP_THRESHOLD = 60`; strength above it means the
+  outer god (外神) fully manifests and **the city dies with no fight at all** (`city_dies`), faithful to the
+  *Lord of the Mysteries* (诡秘之主) canon that a completed manifestation consumes everything — there is no
+  heroic last stand against a fully-descended god. Only if the descent is stopped (strength ≤ 60) does Gate 2
+  run the `CombatEncounter` against the weakened *residual*: winning is `all_good` (descent stopped **and** you
+  live), losing is `near_good` (descent stopped, but the backlash takes you). *Alts (rejected):* a single binary
+  "was the cache stripped bare?" ending (throws away the canon distinction between stopping the rite and
+  surviving it, and makes the combat system we just built decorative); a "cult neutralized" boolean trigger
+  divorced from manifestation strength (double-counts player interference — strength already integrates every
+  sabotage and the Orin turn, so a second signal would drift out of sync with the bar the player actually sees).
+- **`STOP_THRESHOLD` lives on `EndGameResolver`, not `SummoningPlan`.** The threshold is an *ending-resolution*
+  rule, so it sits with the resolver that uses it, keeping `SummoningPlan` purely about advancing the rite and
+  computing strength. *Alts (rejected):* park the constant on `SummoningPlan` (couples the clock to the endgame's
+  win condition — `SummoningPlan` shouldn't know endings exist); hard-code 60 inline at the comparison (a magic
+  number the ending-bands test couldn't reference symbolically).
+- **`CombatEncounter` retuned to `enemy_max_hp = 2.5 × strength`, `enemy_damage = 0.40 × strength`** (player
+  unchanged: 100 HP, 18 basic / 30 occult every 3rd round). Only `_init` changed. The fight now only ever runs at
+  residual strength ≤ 60, and the curve is tuned so the win/lose crossover sits at ~strength 49–50: the mid-50s
+  are lethal and the low-40s survivable. That is deliberate — it makes **player interference the difference
+  between the two stopped endings**, not just between stopping and not. The canonical lever table (verified by
+  `_test_endgame_ending_bands`): no interference → strength 100 → `city_dies`; 1 sabotage → 77.5 → `city_dies`;
+  2 sabotages → 55 → `near_good`; 2 sabotages + turning Orin → 43 → `all_good`; 3 sabotages → 32.5 → `all_good`.
+  *Alts (rejected):* keep the old always-win tuning (the player-survival gate would be meaningless — every
+  stopped run would be `all_good`); make the residual fight unwinnable so stopping the descent always costs your
+  life (collapses `all_good` into `near_good` and erases the reward for going further than the bare minimum).
+- **A pure static `EndGameResolver` carries all the branching; the `EndGame` autoload is a thin pause + overlay
+  shell.** `EndGameResolver.resolve(strength)` is deterministic, dependency-free, and headless-testable on its
+  own (no nodes, no tree); `EndGame` just connects the climax signal, calls the resolver, freezes the world, and
+  draws the screen. *Alts (rejected):* have the `EndGame` autoload build and run the `CombatEncounter` directly
+  (buries the three-way decision inside a CanvasLayer that needs a live tree to test — the logic we most want to
+  pin down becomes the hardest to assert); a resolver that returns only a string outcome (the overlay also needs
+  rounds/HP for its copy, so the resolver returns the full result dict and the screen reads from it).
+- **`EndGame` is a global autoload with `process_mode = ALWAYS`, not a node inside `LiveDistrict`.** The climax,
+  its freeze, and its win/lose screen must outlive any world swap and keep responding while the tree is paused
+  (its Restart/Quit buttons) — exactly the `DevConsole` pattern. So the climax connection moved *out* of
+  `LiveDistrict` (whose orphaned `_on_climax` and the old `combat_resolved` event are deleted) and into the
+  autoload. *Alts (rejected):* keep the handler in `LiveDistrict` (dies on a scene reload — the very thing
+  Restart does — and a paused tree would freeze its own buttons); a one-shot scene pushed at climax time (heavier
+  than a persistent CanvasLayer that's idle until the one moment it's needed).
+- **Restart explicitly resets the stateful singletons, then guard-reloads the scene.** Autoloads persist across
+  `reload_current_scene()`, so a reload alone would carry a finished run's state into the "new" game; `restart()`
+  resets `SummoningPlan` / `Overseer` / `OccultToolManager` / `Agents` / `Clock` / `EventBus` first, and the
+  reload is guarded (`if current_scene != null`) so the headless harness — which has no current scene — can call
+  it safely. *Alts (rejected):* reload the scene and trust it to clear state (autoloads survive the reload — the
+  cult's stripped cache and the ticked clock would leak into the restart); drive restart through `SaveManager`
+  (it round-trips a *saved* run, the opposite of a clean slate — restart wants defaults, not the last save).
+- **The two panels' climax feed retargeted from the dead `combat_resolved` to the new `endgame` event.**
+  `CultProgressPanel`'s public allow-list and `DebugLogPanel`'s color map both keyed the old event; both now key
+  `endgame`, so the panels keep surfacing the climax under the event that actually fires. *Alts (rejected):*
+  emit both events for back-compat (leaves a dead event name on the bus forever and two sources of truth for one
+  moment); drop the panel wiring entirely (the climax would silently vanish from the public feed and the dev log).

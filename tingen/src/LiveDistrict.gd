@@ -49,11 +49,9 @@ func _ready() -> void:
 	_spawn_player()
 	_spawn_agents()
 	_spawn_rite_sabotage_point()
-	# Guard assumes at most one LiveDistrict is alive (GameController._swap_world frees
-	# the old world before adding the new one). It also keeps the headless test suite —
-	# which adds this scene to /root directly, bypassing _swap_world — from double-connecting.
-	if not SummoningPlan.summoning_climax.is_connected(_on_climax):
-		SummoningPlan.summoning_climax.connect(_on_climax)
+	# The climax (and its win/lose endings) is owned by the EndGame autoload, which persists
+	# across world swaps and pauses the tree to raise the end screen. The live district just
+	# dresses the set; it no longer resolves the fight.
 
 # --- Set construction -------------------------------------------------------------------
 ## Build the streetscape under one "Streetscape" node, added first so the player and NPCs
@@ -208,13 +206,3 @@ func _spawn_rite_sabotage_point() -> void:
 func _process(_delta: float) -> void:
 	if is_instance_valid(_player):
 		AgentRuntime.player_position = _player.global_position
-
-## Headless-real climax: resolve the fight deterministically and surface the result. The
-## animated, interactive fight is a later polish; the resolution math is real now.
-func _on_climax(strength: float) -> void:
-	var fight := CombatEncounter.new(strength)
-	var result: Dictionary = fight.auto_resolve()
-	var verdict := "You hold the line." if result["win"] else "The descent takes you."
-	WorldState.thought_requested.emit("The summoning breaks over Tingen. %s (%d HP left, %d rounds)" % [
-		verdict, int(result["player_hp_left"]), int(result["rounds"])])
-	EventBus.emit_event("combat_resolved", result)

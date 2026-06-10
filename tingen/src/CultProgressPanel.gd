@@ -10,7 +10,7 @@ extends Panel
 ## action_vetoed / directive_rejected reasoning — are NOT listed, so they can never leak here.
 const PUBLIC_TYPES: Array = [
 	"player_sabotage", "player_social", "player_occult",   # the player's own deeds
-	"summoning_climax", "combat_resolved",                 # climactic, unmissable
+	"summoning_climax", "endgame",                         # climactic, unmissable
 	# District news + pressure shifts — the prime "publicly-known" feed. Their emitters
 	# (EventManager narrative events / world-pressure broadcasts) aren't on the bus yet, so
 	# these match nothing today; pre-allowed so they surface the moment those land.

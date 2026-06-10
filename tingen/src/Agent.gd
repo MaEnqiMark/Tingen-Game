@@ -19,11 +19,24 @@ var current_action: Dictionary = {}
 var short_memory: Array = []
 var plan: Array = []
 var thought: String = ""   # latest read-out: set by sidecar/critic, else synthesized
+## Combat state. The cast is a fixed, saved roster, so a felled agent is incapacitated
+## (downed), never deleted — unlike Yumina, which removes a dead entity from the world.
+var hp: float = 100.0
+var max_hp: float = 100.0
+var downed: bool = false
+## Per-agent inventory (Yumina-faithful: a flat id->count store the agent carries). Distinct
+## from the player Inventory autoload and from the cult's shared rite cache (SummoningPlan).
+var inventory: Dictionary = {}  # item_id -> int
 
 func _init(agent_id: String = "") -> void:
 	id = agent_id
 
 func tick_fallback(phase: String, speed: float) -> void:
+	# A downed agent is incapacitated: it holds its ground until helped up, so the cheap
+	# scheduled walk skips it entirely. Mirrors the Critic veto that lets a felled agent only
+	# idle — both keep a downed body from drifting around the district.
+	if downed:
+		return
 	# Resolve the NpcDB autoload via the engine singleton table rather than the bare
 	# global identifier: when this class_name script is compiled as a dependency of the
 	# headless `-s` test runner, autoload globals aren't registered yet, so a bare
@@ -46,6 +59,26 @@ func remember(entry: String, cap: int = 20) -> void:
 	short_memory.append(entry)
 	if short_memory.size() > cap:
 		short_memory = short_memory.slice(short_memory.size() - cap)
+
+## Apply flat combat damage (ActionCommit.attack drives this). Clamps to [0, max_hp] and
+## downs the agent at zero — mirroring Yumina's clamp-to-zero HP mutation, but incapacitating
+## rather than deleting, since our cast is fixed and persisted.
+func take_damage(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	hp = clampf(hp - amount, 0.0, max_hp)
+	if hp <= 0.0:
+		downed = true
+
+## Add to this agent's own carried stock (ActionCommit.gather_item drives this).
+func add_item(item_id: String, count: int = 1) -> void:
+	if item_id == "" or count <= 0:
+		return
+	inventory[item_id] = int(inventory.get(item_id, 0)) + count
+
+## How many of an item this agent is currently carrying.
+func item_count(item_id: String) -> int:
+	return int(inventory.get(item_id, 0))
 
 ## The agent's moment-to-moment read-out for the character card. Returns an explicit
 ## thought when one was set (by a sidecar/critic), otherwise synthesizes one from the
@@ -80,6 +113,10 @@ func to_dict() -> Dictionary:
 		"short_memory": short_memory.duplicate(),
 		"plan": plan.duplicate(true),
 		"thought": thought,
+		"hp": hp,
+		"max_hp": max_hp,
+		"downed": downed,
+		"inventory": inventory.duplicate(true),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -95,3 +132,7 @@ func from_dict(d: Dictionary) -> void:
 	short_memory = (d.get("short_memory", []) as Array).duplicate()
 	plan = (d.get("plan", []) as Array).duplicate(true)
 	thought = String(d.get("thought", thought))
+	hp = float(d.get("hp", hp))
+	max_hp = float(d.get("max_hp", max_hp))
+	downed = bool(d.get("downed", downed))
+	inventory = (d.get("inventory", {}) as Dictionary).duplicate(true)

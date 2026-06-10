@@ -16,8 +16,12 @@ var enemy_damage: float
 var player_hp: float
 
 func _init(strength: float) -> void:
-	enemy_max_hp = strength                 # strength IS the enemy's HP pool
-	enemy_damage = strength * 0.12          # and how hard it hits back
+	# The fight only ever runs at residual strength <= EndGameResolver.STOP_THRESHOLD (60): a
+	# fully-manifested descent kills the city outright, with no fight. Tuned so the mid-50s are
+	# lethal and the low-40s are survivable, making player interference the difference between
+	# near-good (you die) and all-good (you live).
+	enemy_max_hp = strength * 2.5           # residual manifestation's HP pool
+	enemy_damage = strength * 0.40          # and how hard it hits back
 	player_hp = PLAYER_MAX_HP
 
 ## Deterministic exchange: each round the player strikes (occult every OCCULT_EVERY),

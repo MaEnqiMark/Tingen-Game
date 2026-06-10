@@ -31,12 +31,13 @@ AgentRuntime="*res://src/AgentRuntime.gd"
 Overseer="*res://src/Overseer.gd"
 SummoningPlan="*res://src/SummoningPlan.gd"
 OccultToolManager="*res://src/OccultToolManager.gd"
-PlayerActions="*res://src/PlayerActions.gd"
-PrayerService="*res://src/PrayerService.gd"
 EventManager="*res://src/EventManager.gd"
 DialogueManager="*res://src/DialogueManager.gd"
 SaveManager="*res://src/SaveManager.gd"
 DevConsole="*res://src/DevConsole.gd"
+PlayerActions="*res://src/PlayerActions.gd"
+PrayerService="*res://src/PrayerService.gd"
+EndGame="*res://src/EndGame.gd"
 
 [display]
 

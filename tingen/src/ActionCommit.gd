@@ -16,6 +16,16 @@ const SITES: Dictionary = {
 ## Shared with AmbientSidecar so the live brain only proposes the rite when committing it counts.
 const RITE_RADIUS: float = 80.0
 
+## How close (px) an attacker must stand to its target for a strike to connect; a swing from
+## farther off is flavor only. Mirrors how the rite is proximity-gated.
+const ATTACK_RADIUS: float = 64.0
+## Flat damage per connecting strike — deterministic, no RNG/crit (Yumina's ability model).
+## About three strikes fell a full-HP agent.
+const ATTACK_DAMAGE: float = 34.0
+## How close (px) two agents must be for talk to carry — a rumor spreads face-to-face, not across
+## the district. Roomy (wider than ATTACK_RADIUS) since conversation reaches farther than a blade.
+const TALK_RADIUS: float = 96.0
+
 ## Resolve an autoload singleton by name. Direct `Autoload.` references fail to compile
 ## in a class_name script under the headless -s harness (autoloads register after
 ## class_name scripts are parsed); the /root lookup is ordering-independent.
@@ -35,11 +45,9 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 		"move_to":
 			return _move_to(agent, String(args.get("target", "")))
 		"talk_to":
-			agent.remember("talked to %s about %s" % [args.get("agent", ""), args.get("topic", "")])
-			return {"talked_to": String(args.get("agent", ""))}
+			return _talk_to(agent, String(args.get("agent", "")), String(args.get("topic", "")))
 		"gather_item":
-			agent.remember("gathered %s" % args.get("item_id", ""))
-			return {"gathered": String(args.get("item_id", ""))}
+			return _gather_item(agent, String(args.get("item_id", "")))
 		"perform_ritual_step":
 			return _perform_ritual_step(agent, String(args.get("step", "")))
 		"recruit":
@@ -59,8 +67,7 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 		"flee":
 			return _flee(agent, String(args.get("from", "")))
 		"attack":
-			agent.remember("attacked %s" % args.get("target", ""))
-			return {"attacked": String(args.get("target", ""))}
+			return _attack(agent, String(args.get("target", "")))
 		"idle":
 			return {"idle": true}
 		_:
@@ -106,6 +113,64 @@ static func _flee(agent: Agent, from: String) -> Dictionary:
 			agent.position += away / away.length() * _step()
 	agent.remember("fled from %s" % from)
 	return {"fled_from": from}
+
+## A strike on another agent: flat damage when the attacker is in reach and the target is up.
+## Felling a target downs (incapacitates) it rather than deleting it — our cast is fixed and
+## saved. Out-of-reach swings, unknown targets, and blows on an already-downed body are
+## flavor-only no-ops. Emits `agent_attacked` per connecting blow and `agent_downed` once, the
+## moment a target is felled — the public, felt signals that combat actually happened.
+static func _attack(agent: Agent, target_id: String) -> Dictionary:
+	agent.remember("attacked %s" % target_id)
+	var target: Agent = _al("Agents").get_agent(target_id)
+	if target == null or target.downed:
+		return {"attacked": target_id, "hit": false}
+	if agent.position.distance_to(target.position) > ATTACK_RADIUS:
+		return {"attacked": target_id, "hit": false}
+	target.take_damage(ATTACK_DAMAGE)
+	var eb: Node = _al("EventBus")
+	eb.emit_event("agent_attacked",
+		{"actor": agent.id, "target": target_id, "damage": ATTACK_DAMAGE, "target_hp": target.hp, "downed": target.downed})
+	if target.downed:
+		eb.emit_event("agent_downed", {"actor": agent.id, "target": target_id})
+	return {"attacked": target_id, "hit": true, "target_hp": target.hp, "downed": target.downed}
+
+## Gathering a known item stocks the agent's OWN inventory. The player sabotages the cult's
+## *shared* rite cache (SummoningPlan), but gathering is per-agent fieldwork and deliberately
+## does NOT restock that cache — a conscious divergence from a shared-cache shortcut (Yumina has
+## no shared cache and likewise gathers into a personal store). Unknown items are a safe no-op.
+## Emits `item_gathered` so the gather is observable.
+static func _gather_item(agent: Agent, item_id: String) -> Dictionary:
+	agent.remember("gathered %s" % item_id)
+	if item_id == "" or not _al("ItemDB").has_def(item_id):
+		return {"gathered": item_id, "added": false}
+	agent.add_item(item_id, 1)
+	_al("EventBus").emit_event("item_gathered",
+		{"actor": agent.id, "item_id": item_id, "count": agent.item_count(item_id)})
+	return {"gathered": item_id, "added": true, "count": agent.item_count(item_id)}
+
+## A talk passes the speaker's freshest observation to the listener as hearsay — this is how
+## knowledge (and the player's exposure) actually travels between agents, not just flavor. Modeled
+## on Yumina's talk_to_npc, which seeds the LISTENER's "heard from others" log, with the same
+## anti-hallucination guard: an agent who has observed nothing has nothing to share, so no rumor is
+## invented. Proximity-gated (TALK_RADIUS) like the rite and the strike — a conversation must happen
+## face-to-face. The speaker's own memory is captured BEFORE recording "talked to ..." so the
+## exchange itself never becomes the rumor. A downed, unknown, or out-of-reach listener, or an empty
+## speaker, is a memory-only no-op. Emits `rumor_spread` so the spread is observable in the log.
+static func _talk_to(agent: Agent, target_id: String, topic: String) -> Dictionary:
+	var observation: String = String(agent.short_memory[-1]) if not agent.short_memory.is_empty() else ""
+	agent.remember("talked to %s about %s" % [target_id, topic])
+	var listener: Agent = _al("Agents").get_agent(target_id)
+	if listener == null or listener.downed:
+		return {"talked_to": target_id, "shared": false}
+	if agent.position.distance_to(listener.position) > TALK_RADIUS:
+		return {"talked_to": target_id, "shared": false}
+	if observation == "":
+		return {"talked_to": target_id, "shared": false}
+	var speaker_name := agent.display_name if agent.display_name != "" else agent.id
+	listener.remember("heard from %s: %s" % [speaker_name, observation])
+	_al("EventBus").emit_event("rumor_spread",
+		{"from": agent.id, "to": target_id, "summary": observation, "topic": topic})
+	return {"talked_to": target_id, "shared": true, "rumor": observation}
 
 ## Resolve a target string to a position. Order: another agent's id, a named site, an
 ## "x,y" coordinate. Returns { found: bool, pos: Vector2 }.

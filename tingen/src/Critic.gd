@@ -22,6 +22,12 @@ static func review(action: Dictionary, agent: Agent) -> Dictionary:
 	var verb := String(action.get("verb", ""))
 	var args: Dictionary = action.get("args", {})
 
+	# --- Downed agents are incapacitated: nothing but idle is physically possible. This
+	# overrides every other axis (a felled cultist cannot crawl to the rite or swing), so it
+	# runs first. take_damage()/_attack downs the body; only idle survives until it is helped up.
+	if agent.downed and verb != "idle":
+		return _verdict("veto", "%s is downed and can only idle" % agent.id)
+
 	# --- Coherence / state legality by role + faction ---
 	var is_cultist := agent.faction == "cult"
 
