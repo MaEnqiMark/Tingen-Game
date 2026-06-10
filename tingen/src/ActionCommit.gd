@@ -12,6 +12,10 @@ const SITES: Dictionary = {
 	"iron_cross_warehouse": Vector2(420, 360),
 }
 
+## How close (px) an agent must stand to the rite site for its ritual work to actually bite.
+## Shared with AmbientSidecar so the live brain only proposes the rite when committing it counts.
+const RITE_RADIUS: float = 80.0
+
 ## Resolve an autoload singleton by name. Direct `Autoload.` references fail to compile
 ## in a class_name script under the headless -s harness (autoloads register after
 ## class_name scripts are parsed); the /root lookup is ordering-independent.
@@ -37,8 +41,7 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 			agent.remember("gathered %s" % args.get("item_id", ""))
 			return {"gathered": String(args.get("item_id", ""))}
 		"perform_ritual_step":
-			agent.remember("performed ritual step: %s" % args.get("step", ""))
-			return {"ritual_step": String(args.get("step", ""))}
+			return _perform_ritual_step(agent, String(args.get("step", "")))
 		"recruit":
 			agent.remember("approached %s to recruit" % args.get("agent", ""))
 			return {"recruited": String(args.get("agent", ""))}
@@ -62,6 +65,23 @@ static func commit(action: Dictionary, agent: Agent) -> Dictionary:
 			return {"idle": true}
 		_:
 			return {"noop": "unhandled verb '%s'" % verb}
+
+## A cultist working the rite AT the warehouse drives the summoning clock forward — this is the
+## only place cult behavior bites the doomsday countdown, so the player can watch the descent leap
+## as the faithful gather. The same verb off-site, or from anyone outside the cult, is flavor only.
+## (The Critic already blocks non-cultists from proposing this verb; the guard here keeps the world
+## effect honest regardless of how the action reached commit.) Emits `ritual_advanced` for the
+## debug log — deliberately NOT a public cult-progress event, so the rite stays hidden but felt.
+static func _perform_ritual_step(agent: Agent, step: String) -> Dictionary:
+	agent.remember("performed ritual step: %s" % step)
+	var site: Vector2 = SITES["iron_cross_warehouse"]
+	if agent.faction == "cult" and agent.position.distance_to(site) <= RITE_RADIUS:
+		var sp: Node = _al("SummoningPlan")
+		sp.advance_rite(1)
+		_al("EventBus").emit_event("ritual_advanced",
+			{"actor": agent.id, "step": step, "closeness": sp.closeness_ratio()})
+		return {"ritual_step": step, "advanced": true}
+	return {"ritual_step": step, "advanced": false}
 
 static func _move_to(agent: Agent, target: String) -> Dictionary:
 	var resolved := _resolve_target(target)

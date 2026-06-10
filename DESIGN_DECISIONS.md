@@ -772,3 +772,53 @@ window into what the agent-sim is actually doing each beat.
   the brain — defense in depth against a buggy/old sidecar or a future non-Claude brain. *Alt (rejected):*
   trust the sidecar's own validation (one schema drift or a swapped brain and bad actions reach the
   runtime; the cost of re-checking is a few `if`s).
+
+### Implementation notes — cult→summoning coupling (post-Plan-F)
+
+Playtest gap: cult NPCs (邪教) walk to the warehouse and "perform ritual steps", but nothing they do
+touches the doomsday clock — only the player's sabotage/social verbs fed `SummoningPlan`, and
+`perform_ritual_step` was memory-only flavor in `ActionCommit`. The countdown ticked on a pure timer,
+so the cell felt inert: you couldn't watch *them* drive the descent. This pass wires the cult's own
+rite into the summoning clock so gathering at the warehouse visibly quickens the end.
+
+- **The rite bites the clock in exactly one place — `ActionCommit._perform_ritual_step` — gated on
+  `faction == "cult"` AND standing within `RITE_RADIUS` of the warehouse.** Commit is the single seam
+  where agents mutate the world, so that is where the coupling belongs; a cultist working the rite *on
+  site* calls `SummoningPlan.advance_rite(1)`, anyone else (or the same cultist mid-street) gets the old
+  flavor-only outcome. *Alts (rejected):* let the brain (`AmbientSidecar`/`HttpSidecar`) decrement the
+  clock when it proposes the rite (the brain must never own world mutation — a buggy or hostile/LLM brain
+  could then race the countdown arbitrarily, bypassing the critic+commit pipeline every other effect goes
+  through); rely on the Critic's existing cultist-only veto and skip the commit-time guard (the Critic
+  judges *proposals*, not committed reality — re-checking faction+position at commit keeps the effect
+  honest no matter how the action arrived, the same defense-in-depth the schema re-validation uses).
+- **A dedicated `SummoningPlan.advance_rite(beats)` that shares a refactored `_fire_climax_if_due()` with
+  `tick_countdown()`.** Both the steady timer and the cult's hands must resolve the descent identically —
+  clamp at zero, never go negative, fire `summoning_climax` exactly once — so the climax block was lifted
+  into one helper both paths call. *Alts (rejected):* make the rite call `tick_countdown()` N times (emits
+  `countdown_changed` N times for one beat of work — UI thrash — and re-reads "hasten by N" as "N separate
+  ticks"); inline a second copy of the climax-fire block inside `advance_rite` (duplicate logic that would
+  drift the day one path changes — exactly the bug the shared helper prevents).
+- **`AmbientSidecar` proposes `perform_ritual_step` only once a cultist is already within
+  `ActionCommit.RITE_RADIUS`; farther cultists keep `move_to`-ing toward the warehouse.** The brain reuses
+  the *same* radius constant the commit step enforces, so it never proposes a rite that commit would
+  quietly treat as flavor — you watch them converge, then watch them work. *Alts (rejected):* let every
+  cultist propose the rite from anywhere and let commit no-op the off-site ones (the debug log fills with
+  rites that do nothing, and on screen a cultist "performs" alone in the street — misleading); give
+  `AmbientSidecar` its own radius constant (two numbers that must be kept in lockstep — drift risk, so the
+  threshold lives once on `ActionCommit` and the brain references it).
+- **`ritual_advanced` is emitted for the debug overlay but deliberately NOT added to
+  `CultProgressPanel.PUBLIC_TYPES`.** The readiness bar already reflects the rite (it reads
+  `closeness_ratio()`), so the player *feels* the descent quicken without the panel ever printing a literal
+  "the cult advanced the ritual" line — surfacing that would leak the secret cult moves the panel's
+  default-deny allow-list exists to hide. *Alts (rejected):* add `ritual_advanced` to `PUBLIC_TYPES` so the
+  panel lists it (breaks the secrecy design — the panel shows only the player's own deeds and public
+  fallout); emit nothing at all (then a developer watching the F1 overlay can't see *why* the countdown
+  suddenly leapt — the event is the only causal breadcrumb for an otherwise hidden mechanic).
+- **Balance: the steady tick removes one beat; each cultist working the rite removes one more, on top.**
+  A lone straggler barely moves a 40-beat countdown, but a cell of three at the warehouse burns it in ~10
+  beats instead of 40 — so gathering the faithful is visibly the dominant driver, while the player's
+  sabotage/social interference (which adds setback beats back) still reads as rewinding the clock. *Alts
+  (rejected):* a larger per-rite jump (the countdown craters the instant two cultists arrive — no window to
+  react); scale the jump by remaining ingredients or impede (extra coupling to tune a number the player only
+  ever reads as "how fast is the bar moving" — premature, and the ingredient count already gates *strength*
+  at the climax, not *speed*).

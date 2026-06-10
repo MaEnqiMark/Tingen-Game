@@ -38,10 +38,12 @@ func _init() -> void:
 	_test_action_schema()
 	_test_mock_sidecar()
 	_test_ambient_sidecar()
+	_test_ambient_sidecar_performs_rite()
 	_test_http_sidecar()
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
 	_test_action_commit()
+	_test_ritual_step_advances_summoning()
 	_test_commit_sets_thought()
 	_test_agent_runtime_beat()
 	_test_overseer_state()
@@ -52,6 +54,7 @@ func _init() -> void:
 	_test_prayer_adjudication()
 	_test_prayer_service()
 	_test_summoning_countdown_and_climax()
+	_test_summoning_advance_rite()
 	_test_summoning_progress_readouts()
 	await _test_cult_progress_panel()
 	await _test_npc_binds_to_agent()
@@ -735,6 +738,103 @@ func _test_summoning_progress_readouts() -> void:
 	SP.add_impede(40.0)
 	_ok(SP.interference_band() == "heavy", "large impede = heavy band")
 	SP.reset()
+
+func _test_summoning_advance_rite() -> void:
+	print("[summoning advance_rite]")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	SP.reset()
+	SP.countdown_beats = 5
+	var fired: Array = []
+	var cb := func(strength: float): fired.append(strength)
+	SP.summoning_climax.connect(cb)
+	var beats_reported: Array = []
+	var cc := func(n: int): beats_reported.append(n)
+	SP.countdown_changed.connect(cc)
+	EB.clear()
+	# Working the rite hastens the descent — by more than one beat when several hands work it.
+	SP.advance_rite(2)
+	_ok(SP.countdown_beats == 3, "advance_rite(2) hastens 5 -> 3")
+	_ok(beats_reported == [3], "advance_rite emits countdown_changed with the new beats_left")
+	_ok(fired.is_empty(), "no climax before zero")
+	# Default step is a single beat.
+	SP.advance_rite()
+	_ok(SP.countdown_beats == 2, "advance_rite() defaults to one beat (3 -> 2)")
+	# Overshooting zero clamps to zero and fires the climax exactly once.
+	SP.advance_rite(10)
+	_ok(SP.countdown_beats == 0, "advance_rite clamps at zero, never negative")
+	_ok(fired.size() == 1, "climax fires exactly once when the rite completes the descent")
+	_ok(is_equal_approx(fired[0], SP.manifestation_strength()), "climax strength == manifestation_strength()")
+	_ok(SP.climax_fired, "climax_fired latched true")
+	var saw := false
+	for e in EB.events("summoning_climax"):
+		saw = true
+	_ok(saw, "summoning_climax event logged")
+	# After the climax, further rite work is inert.
+	SP.advance_rite(3)
+	_ok(fired.size() == 1, "advance_rite does not re-fire after the climax")
+	_ok(SP.countdown_beats == 0, "countdown stays at zero after the climax")
+	SP.summoning_climax.disconnect(cb)
+	SP.countdown_changed.disconnect(cc)
+	SP.reset()
+
+func _test_ritual_step_advances_summoning() -> void:
+	print("[ritual step -> summoning]")
+	var AG: Object = root.get_node("/root/Agents")
+	var SP: Object = root.get_node("/root/SummoningPlan")
+	var EB: Object = root.get_node("/root/EventBus")
+	AG.rebuild()
+	SP.reset()
+	var site: Vector2 = ActionCommit.SITES["iron_cross_warehouse"]
+	var voss: Agent = AG.get_agent("clerk_voss")   # cult / leader
+	_ok(voss.faction == "cult", "clerk_voss is a cultist (precondition)")
+	# A cultist performing the rite AT the warehouse hastens the descent and logs it.
+	voss.position = site
+	var cd_before: int = SP.countdown_beats
+	EB.clear()
+	var out: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "perform_ritual_step", "args": {"step": "Inscribe the circle."}}, voss)
+	_ok(SP.countdown_beats < cd_before, "a cultist's rite at the site advances the summoning clock")
+	_ok(out.get("advanced", false) == true, "outcome reports the rite advanced the summoning")
+	_ok(EB.events("ritual_advanced").size() == 1, "a ritual_advanced event is logged")
+	_ok(EB.events("ritual_advanced")[0]["data"]["actor"] == "clerk_voss", "the event names the performing cultist")
+	# The same cultist far from the site cannot advance the rite — it is flavor only.
+	voss.position = site + Vector2(1000, 1000)
+	var cd_far: int = SP.countdown_beats
+	EB.clear()
+	var out_far: Dictionary = ActionCommit.commit(
+		{"actor": "clerk_voss", "verb": "perform_ritual_step", "args": {"step": "Mutter the name."}}, voss)
+	_ok(SP.countdown_beats == cd_far, "a cultist away from the site does not advance the clock")
+	_ok(out_far.get("advanced", false) == false, "an off-site rite is flavor-only")
+	_ok(EB.events("ritual_advanced").is_empty(), "no ritual_advanced event off-site")
+	# A non-cultist standing on the very site still cannot drive the summoning.
+	var pell: Agent = AG.get_agent("dockhand_pell")   # civilian / victim
+	pell.position = site
+	var cd_civ: int = SP.countdown_beats
+	EB.clear()
+	var out_civ: Dictionary = ActionCommit.commit(
+		{"actor": "dockhand_pell", "verb": "perform_ritual_step", "args": {"step": "Watch the chalk."}}, pell)
+	_ok(SP.countdown_beats == cd_civ, "a non-cultist at the site does not advance the clock")
+	_ok(out_civ.get("advanced", false) == false, "a non-cultist's rite is flavor-only")
+	SP.reset()
+
+func _test_ambient_sidecar_performs_rite() -> void:
+	print("[ambient sidecar rite]")
+	var amb := AmbientSidecar.new()
+	# A cultist standing ON the rite site should work the ritual, not keep walking.
+	var at_site := {"agent_id": "clerk_voss", "faction": "cult",
+		"position": [AmbientSidecar.WAREHOUSE.x, AmbientSidecar.WAREHOUSE.y], "phase": "night", "beat": 11}
+	var out: Array = amb.propose([at_site])
+	_ok(out[0]["verb"] == "perform_ritual_step", "a cultist at the warehouse performs the rite")
+	_ok(ActionSchema.validate(out[0])["ok"], "the rite proposal is schema-valid")
+	_ok(String((out[0]["args"] as Dictionary).get("step", "")) != "", "the rite proposal carries a step")
+	# A cultist still far from the site keeps converging (move_to), not performing.
+	var far := {"agent_id": "clerk_voss", "faction": "cult", "position": [200.0, 200.0], "phase": "night", "beat": 11}
+	var out_far: Array = amb.propose([far])
+	_ok(out_far[0]["verb"] == "move_to", "a distant cultist is still walking to the warehouse")
+	# Deterministic: the same snapshot replays the same rite step.
+	var again: Array = amb.propose([at_site])
+	_ok(again[0]["args"]["step"] == out[0]["args"]["step"], "the same beat replays the same rite step")
 
 func _test_cult_progress_panel() -> void:
 	print("[cult panel]")

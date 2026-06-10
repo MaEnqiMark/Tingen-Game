@@ -16,6 +16,16 @@ extends MockSidecar
 const WAREHOUSE: Vector2 = Vector2(420, 360)
 const WANDER: float = 28.0   # px of deterministic per-beat scatter around a goal
 
+## The four-step descent litany, mirroring data/rituals.json summoning_descent. Cycled by beat so
+## the rite visibly progresses while staying deterministic; the line is flavor, the clock effect
+## (one beat off the countdown, applied in ActionCommit) is independent of which step shows.
+const RITE_STEPS: Array = [
+	"Inscribe the consecrated circle in chalk.",
+	"Set and light the three candles at its points.",
+	"Lay the salt wards and speak the descending name.",
+	"Offer the marked sacrifice to open the gate.",
+]
+
 func propose(snapshots: Array) -> Array:
 	var out: Array = []
 	for s in snapshots:
@@ -25,7 +35,18 @@ func propose(snapshots: Array) -> Array:
 func _decide(snap: Dictionary) -> Dictionary:
 	var actor := String(snap.get("agent_id", ""))
 	var faction := String(snap.get("faction", ""))
-	var goal: Vector2 = _goal_for(actor, faction, snap) + _scatter(actor, int(snap.get("beat", 0)))
+	var beat := int(snap.get("beat", 0))
+	# A cultist who has reached the rite site works the ritual instead of milling about — and that
+	# drives the summoning clock (ActionCommit.perform_ritual_step). Until they arrive they keep
+	# converging on the warehouse, so you watch them gather, then watch the descent quicken.
+	if _is_cult(faction) and _at_rite(snap):
+		return {
+			"actor": actor,
+			"verb": "perform_ritual_step",
+			"args": {"step": _rite_step(beat)},
+			"thought": "The descent draws nearer by my hand.",
+		}
+	var goal: Vector2 = _goal_for(actor, faction, snap) + _scatter(actor, beat)
 	# Encode the goal as an "x,y" target so ActionCommit resolves it without a named site.
 	return {
 		"actor": actor,
@@ -33,6 +54,17 @@ func _decide(snap: Dictionary) -> Dictionary:
 		"args": {"target": "%.1f,%.1f" % [goal.x, goal.y]},
 		"thought": _thought_for(faction),
 	}
+
+## True when the agent already stands within rite range of the warehouse — the same threshold the
+## commit step enforces (ActionCommit.RITE_RADIUS), so the brain never proposes a rite that wouldn't
+## actually bite the clock.
+func _at_rite(snap: Dictionary) -> bool:
+	return _vec(snap.get("position", [0, 0])).distance_to(WAREHOUSE) <= ActionCommit.RITE_RADIUS
+
+## Pick the descent step for this beat — cycles the litany so the rite reads as progressing, and is
+## a pure function of beat so the same beat replays identically.
+func _rite_step(beat: int) -> String:
+	return String(RITE_STEPS[posmod(beat, RITE_STEPS.size())])
 
 func _goal_for(actor: String, faction: String, snap: Dictionary) -> Vector2:
 	if _is_cult(faction):

@@ -38,7 +38,23 @@ func tick_countdown() -> void:
 	if countdown_beats > 0:
 		countdown_beats -= 1
 		countdown_changed.emit(countdown_beats)
-	if countdown_beats <= 0:
+	_fire_climax_if_due()
+
+## Hasten the descent by `beats` — the cult's own hands working the rite at the warehouse
+## drive this (ActionCommit.perform_ritual_step), so the player watches the clock leap when
+## the faithful gather, not just tick on a timer. Clamps at zero and fires the climax once.
+func advance_rite(beats: int = 1) -> void:
+	if climax_fired or beats <= 0:
+		return
+	if countdown_beats > 0:
+		countdown_beats = maxi(0, countdown_beats - beats)
+		countdown_changed.emit(countdown_beats)
+	_fire_climax_if_due()
+
+## Fire the summoning climax exactly once, the moment the countdown reaches zero. Shared by
+## the steady tick and the cult-driven rite so both paths resolve the descent identically.
+func _fire_climax_if_due() -> void:
+	if countdown_beats <= 0 and not climax_fired:
 		climax_fired = true
 		var strength := manifestation_strength()
 		summoning_climax.emit(strength)
