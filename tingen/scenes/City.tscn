@@ -35,6 +35,13 @@ prompt_text = "Speak to the Nighthawk"
 tint = Color(0.45, 0.55, 0.8, 1)
 dialogue_id = "nighthawk"
 
+[node name="HQDoor" parent="." instance=ExtResource("interactable")]
+position = Vector2(300, 500)
+prompt_text = "Enter the Nighthawks' headquarters"
+tint = Color(0.55, 0.62, 0.85, 1)
+target_scene = "res://scenes/NighthawksHQ.tscn"
+lead_on_use = "线索：进入值夜者总部，面见队长。 (Report to the Nighthawk captain at headquarters.)"
+
 [node name="Orin" parent="." instance=ExtResource("npc")]
 position = Vector2(400, 240)
 npc_id = "lamplighter_orin"
