@@ -4,34 +4,39 @@
 		"name": "Iron Cross Street",
 		"base_risk": 0.45,
 		"risk_pressure": "corruption",
-		"polygon": [320, 200, 560, 200, 560, 380, 320, 380]
+		"polygon": [320, 200, 560, 200, 560, 380, 320, 380],
+		"map_polygon": [430, 300, 600, 300, 600, 440, 430, 440]
 	},
 	{
 		"id": "harbor",
 		"name": "The Harbor",
 		"base_risk": 0.30,
 		"risk_pressure": "cult_readiness",
-		"polygon": [80, 400, 360, 400, 360, 600, 80, 600]
+		"polygon": [80, 400, 360, 400, 360, 600, 80, 600],
+		"map_polygon": [680, 440, 860, 440, 860, 620, 680, 620]
 	},
 	{
 		"id": "st_selena",
 		"name": "St. Selena Cathedral",
 		"base_risk": 0.20,
 		"risk_pressure": "attention",
-		"polygon": [600, 160, 820, 160, 820, 340, 600, 340]
+		"polygon": [600, 160, 820, 160, 820, 340, 600, 340],
+		"map_polygon": [610, 150, 770, 150, 770, 300, 610, 300]
 	},
 	{
 		"id": "night_market",
 		"name": "Night Market",
 		"base_risk": 0.35,
 		"risk_pressure": "panic",
-		"polygon": [400, 420, 660, 420, 660, 600, 400, 600]
+		"polygon": [400, 420, 660, 420, 660, 600, 400, 600],
+		"map_polygon": [380, 470, 560, 470, 560, 630, 380, 630]
 	},
 	{
 		"id": "uptown",
 		"name": "Backlund Bridge Quarter",
 		"base_risk": 0.10,
 		"risk_pressure": "corruption",
-		"polygon": [700, 380, 900, 380, 900, 560, 700, 560]
+		"polygon": [700, 380, 900, 380, 900, 560, 700, 560],
+		"map_polygon": [690, 300, 850, 300, 850, 430, 690, 430]
 	}
 ]

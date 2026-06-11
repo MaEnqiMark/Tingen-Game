@@ -84,6 +84,7 @@ func _init() -> void:
 	_test_endgame_autoload()
 	_test_map_projection_world_to_map()
 	_test_map_projection_canvas_fit()
+	_test_district_map_polygons()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
@@ -1865,6 +1866,36 @@ func _test_debug_log_panel() -> void:
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
+
+func _test_district_map_polygons() -> void:
+	print("[district map_polygons]")
+	var raw: String = FileAccess.get_file_as_string("res://data/districts.json")
+	var parsed: Variant = JSON.parse_string(raw)
+	_ok(typeof(parsed) == TYPE_ARRAY, "districts.json parses to an array")
+	var districts: Array = parsed if typeof(parsed) == TYPE_ARRAY else []
+	_ok(districts.size() == 5, "five districts present")
+	var ids: Array = []
+	var all_valid := true
+	var all_in_bounds := true
+	var risk_model_intact := true
+	for d in districts:
+		var dd: Dictionary = d
+		ids.append(String(dd.get("id", "")))
+		var mp: Array = dd.get("map_polygon", [])
+		if mp.size() < 6 or mp.size() % 2 != 0:
+			all_valid = false
+		for i in range(0, mp.size() - 1, 2):
+			var x: float = float(mp[i])
+			var y: float = float(mp[i + 1])
+			if x < 0.0 or x > MapProjection.MAP_SIZE.x or y < 0.0 or y > MapProjection.MAP_SIZE.y:
+				all_in_bounds = false
+		if not (dd.has("base_risk") and dd.has("risk_pressure")):
+			risk_model_intact = false
+	_ok(all_valid, "every district has an even-length map_polygon of >= 6 numbers (>= 3 vertices)")
+	_ok(all_in_bounds, "every map_polygon vertex sits within [0,1000] x [0,706]")
+	for expected in ["iron_cross", "harbor", "st_selena", "night_market", "uptown"]:
+		_ok(ids.has(expected), "district '%s' is present" % expected)
+	_ok(risk_model_intact, "base_risk / risk_pressure still present on every district (risk model unbroken)")
 
 func _test_map_projection_canvas_fit() -> void:
 	print("[map projection canvas fit]")
