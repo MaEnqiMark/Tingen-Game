@@ -85,6 +85,7 @@ func _init() -> void:
 	_test_map_projection_world_to_map()
 	_test_map_projection_canvas_fit()
 	_test_district_map_polygons()
+	_test_map_texture_imported()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
@@ -1866,6 +1867,14 @@ func _test_debug_log_panel() -> void:
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
+
+func _test_map_texture_imported() -> void:
+	print("[map texture]")
+	var tex: Variant = load("res://assets/maps/tingen_map.png")
+	_ok(tex is Texture2D, "tingen_map.png is imported and loads as a Texture2D")
+	if tex is Texture2D:
+		_ok((tex as Texture2D).get_size().is_equal_approx(MapProjection.MAP_SIZE),
+			"texture size matches MAP_SIZE (1000x706)")
 
 func _test_district_map_polygons() -> void:
 	print("[district map_polygons]")
