@@ -91,6 +91,7 @@ func _init() -> void:
 	_test_prayer_parity_with_sidecar()
 	await _test_prayer_panel()
 	await _test_debug_log_panel()
+	await _test_district_map_panel()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -1927,6 +1928,10 @@ func _test_map_projection_canvas_fit() -> void:
 	var p := Vector2(640.0, 410.0)
 	var back: Vector2 = MapProjection.canvas_to_image(canvas, MapProjection.image_to_canvas(canvas, p))
 	_ok(back.is_equal_approx(p), "canvas_to_image(image_to_canvas(p)) == p")
+	# Degenerate zero-size canvas (e.g. before first layout): the inverse must stay finite
+	# (no inf/nan) so callers can't silently propagate garbage. scale<=0 -> pass the point through.
+	_ok(MapProjection.canvas_to_image(Vector2.ZERO, Vector2(100.0, 100.0)).is_finite(),
+		"canvas_to_image on a zero-size canvas returns a finite point")
 
 func _test_map_projection_world_to_map() -> void:
 	print("[map projection world_to_map]")
@@ -1946,6 +1951,26 @@ func _test_map_projection_world_to_map() -> void:
 		"player_start (440,300) lands inside IRON_CROSS_DEST")
 	_ok(dst.has_point(MapProjection.world_to_map(MapProjection.WAREHOUSE_WORLD)),
 		"WAREHOUSE_WORLD lands inside IRON_CROSS_DEST")
+
+## The map panel loads the real map texture and the five districts, and toggles like the other
+## modals. Asserts only layout-independent invariants so it is robust under headless control sizing;
+## the geometry it draws is covered by the MapProjection unit tests, not re-tested through the view.
+func _test_district_map_panel() -> void:
+	print("[district map panel]")
+	var panel = load("res://ui/DistrictMap.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "map panel hidden by default")
+	_ok(panel.districts.size() == 5, "panel loaded the five districts")
+	_ok(panel.has_map_texture(), "panel loaded the tingen_map.png texture")
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "map panel toggles visible")
+	panel.toggle()
+	await process_frame
+	_ok(not panel.visible, "map panel toggles back hidden")
+	panel.queue_free()
+	await process_frame
 
 ## Returns the argv prefix to run Python via `/usr/bin/env` (so PATH is searched), or []
 ## if no interpreter is available. Tries python3 then python.

@@ -30,7 +30,11 @@ static func image_to_canvas(canvas_size: Vector2, p: Vector2) -> Vector2:
 	return offset + p * scale
 
 ## Canvas → map-image: the exact inverse of image_to_canvas (for hover hit-testing).
+## A zero/negative-size canvas (e.g. before first layout) has no valid inverse; pass the
+## point through unchanged rather than dividing by zero into inf/nan.
 static func canvas_to_image(canvas_size: Vector2, p: Vector2) -> Vector2:
 	var scale: float = minf(canvas_size.x / MAP_SIZE.x, canvas_size.y / MAP_SIZE.y)
+	if scale <= 0.0:
+		return p
 	var offset: Vector2 = (canvas_size - MAP_SIZE * scale) * 0.5
 	return (p - offset) / scale
