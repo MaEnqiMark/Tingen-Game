@@ -82,6 +82,7 @@ func _init() -> void:
 	_test_endgame_resolver()
 	_test_endgame_ending_bands()
 	_test_endgame_autoload()
+	_test_map_projection_world_to_map()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
@@ -1863,6 +1864,25 @@ func _test_debug_log_panel() -> void:
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
+
+func _test_map_projection_world_to_map() -> void:
+	print("[map projection world_to_map]")
+	# Constants match the canonical map-image space (tingen_map.png is 1000x706).
+	_ok(MapProjection.MAP_SIZE == Vector2(1000.0, 706.0), "MAP_SIZE is the tingen_map.png pixel size")
+	# The four corners of the streetscape source map exactly onto the Iron Cross dest corners.
+	var src: Rect2 = MapProjection.STREETSCAPE_SOURCE
+	var dst: Rect2 = MapProjection.IRON_CROSS_DEST
+	_ok(MapProjection.world_to_map(src.position).is_equal_approx(dst.position),
+		"source top-left -> dest top-left")
+	_ok(MapProjection.world_to_map(src.position + src.size).is_equal_approx(dst.position + dst.size),
+		"source bottom-right -> dest bottom-right")
+	_ok(MapProjection.world_to_map(src.get_center()).is_equal_approx(dst.get_center()),
+		"source center -> dest center")
+	# The live anchor points both land inside the Iron Cross region.
+	_ok(dst.has_point(MapProjection.world_to_map(Vector2(440.0, 300.0))),
+		"player_start (440,300) lands inside IRON_CROSS_DEST")
+	_ok(dst.has_point(MapProjection.world_to_map(MapProjection.WAREHOUSE_WORLD)),
+		"WAREHOUSE_WORLD lands inside IRON_CROSS_DEST")
 
 ## Returns the argv prefix to run Python via `/usr/bin/env` (so PATH is searched), or []
 ## if no interpreter is available. Tries python3 then python.
