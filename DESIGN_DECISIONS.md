@@ -994,3 +994,36 @@ lives and descend is stopped.")* That gives three endings, and the design is bui
   `endgame`, so the panels keep surfacing the climax under the event that actually fires. *Alts (rejected):*
   emit both events for back-compat (leaves a dead event name on the bus forever and two sources of truth for one
   moment); drop the panel wiring entirely (the climax would silently vanish from the public feed and the dev log).
+
+### Implementation notes — map panel (real map + markers + live tracker)
+
+**Real `tingen_map.png` base with an isolated map-anchor overlay layer; the streetscape is left as-is.**
+The panel renders the printed city map and overlays live risk-tinted district regions, point markers, and a
+live player dot — all expressed in map-image space (the canonical anchor). *Alts (rejected):* (a) unify
+world/agent coords into map space now — that is sub-project 2's job; pulling it forward bloats the slice and
+re-risks the streetscape for no panel-side benefit. (b) draw the existing abstract `polygon`s over the map —
+they land on the wrong geography (Harbor over dry land, not the east river).
+
+**Pure `MapProjection` (`class_name`, `RefCounted`) owns the coordinate math; `DistrictMap` is a thin view.**
+Three spaces (world, map-image, canvas), two transforms (`world_to_map`, `image_to_canvas`) plus the inverse
+`canvas_to_image`. *Alts (rejected):* keep the math inside `DistrictMap.gd` — its `@onready` scene refs make it
+node-bound and awkward to test headlessly; the `EndGameResolver` precedent (pure seam under a thin shell) is the
+house pattern.
+
+**Aspect-preserving (letterbox) fit, one transform shared by the art and every overlay.** *Alts (rejected):*
+stretch-to-fill the control — distorts the map and silently misaligns markers when the panel's aspect ≠ 1.416:1.
+
+**Warehouse marker derived via `world_to_map(WAREHOUSE_WORLD)`; district markers at polygon centroids; no new
+landmark data file.** *Alts (rejected):* a separate `landmarks.json` — YAGNI for v1; the warehouse is derivable
+(and stays consistent with the player dot's coordinate system) and the district focal points come free from
+their regions.
+
+**Copy `tingen_map.png` into `res://assets/maps/`.** *Alts (rejected):* reference it in `asset-gen/ref/` —
+outside the Godot project tree, so it cannot be imported/loaded as a texture.
+
+**Additive `map_polygon` per district; the old abstract `polygon` and the `base_risk`/`risk_pressure` risk model
+are untouched.** The new field re-anchors each region onto the real map (river east) without disturbing the
+streetscape or changing any risk value.
+
+**Live tracker range is one district until sub-project 2.** `AgentRuntime.player_position` is real and the dot
+follows it, but only the Iron Cross region is currently walkable, so that is the dot's range for now.
