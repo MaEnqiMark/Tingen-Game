@@ -46,6 +46,38 @@
 			}
 		}
 	},
+	"captain": {
+		"start": "root",
+		"nodes": {
+			"root": {
+				"speaker": "Nighthawk Captain",
+				"text": "So you're the one the street watch flagged. Sit. You carry Antigonus' notebook, and that makes you the most hunted soul in Tingen tonight.",
+				"options": [
+					{ "label": "Who are the Nighthawks?", "goto": "who" },
+					{ "label": "What do you need from me?", "goto": "charge" },
+					{ "label": "(Leave)", "goto": "end" }
+				]
+			},
+			"who": {
+				"speaker": "Nighthawk Captain",
+				"text": "Watchmen against the things the Church buries. We don't answer to the parish, and right now we're the only reason you're still breathing.",
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"charge": {
+				"speaker": "Nighthawk Captain",
+				"text": "That notebook is a key the Church of Evernight will kill to claim. Antigonus wrote it — and the University archives still hold his name. Go there. Learn who he was before the Church learns where you are.",
+				"effects": [
+					{ "type": "collect", "clue": "captain_briefing" },
+					{ "type": "lead", "text": "线索：前往廷根大学档案馆，查清安提哥努斯其人 (Search the Tingen University archives for Antigonus)." }
+				],
+				"options": [
+					{ "label": "Understood.", "goto": "end" }
+				]
+			}
+		}
+	},
 	"orin_waverer": {
 		"start": "root",
 		"nodes": {

@@ -38,5 +38,15 @@
 		"location": "city",
 		"topics": ["the_nighthawks", "church_of_evernight"],
 		"linked_entities": ["nighthawk"]
+	},
+	{
+		"id": "captain_briefing",
+		"name": "The Captain's Charge",
+		"description": "The Nighthawk captain set you on the trail: Antigonus' notebook is a key the Church will kill for, and the University archives hold his name.",
+		"type": "testimony",
+		"importance": "pivotal",
+		"location": "nighthawk_hq",
+		"topics": ["the_nighthawks", "antigonus_notebook"],
+		"linked_entities": ["nighthawk_captain"]
 	}
 ]
