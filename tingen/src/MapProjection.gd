@@ -20,3 +20,17 @@ const WAREHOUSE_WORLD := Vector2(420.0, 360.0)
 static func world_to_map(world_pos: Vector2) -> Vector2:
 	var u: Vector2 = (world_pos - STREETSCAPE_SOURCE.position) / STREETSCAPE_SOURCE.size
 	return IRON_CROSS_DEST.position + u * IRON_CROSS_DEST.size
+
+
+## Map-image → canvas: aspect-preserving (letterbox) fit of MAP_SIZE into canvas_size.
+## Uniform scale, centered; never distorts the art, so every overlay stays aligned to it.
+static func image_to_canvas(canvas_size: Vector2, p: Vector2) -> Vector2:
+	var scale: float = minf(canvas_size.x / MAP_SIZE.x, canvas_size.y / MAP_SIZE.y)
+	var offset: Vector2 = (canvas_size - MAP_SIZE * scale) * 0.5
+	return offset + p * scale
+
+## Canvas → map-image: the exact inverse of image_to_canvas (for hover hit-testing).
+static func canvas_to_image(canvas_size: Vector2, p: Vector2) -> Vector2:
+	var scale: float = minf(canvas_size.x / MAP_SIZE.x, canvas_size.y / MAP_SIZE.y)
+	var offset: Vector2 = (canvas_size - MAP_SIZE * scale) * 0.5
+	return (p - offset) / scale

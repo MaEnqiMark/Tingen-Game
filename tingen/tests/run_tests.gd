@@ -83,6 +83,7 @@ func _init() -> void:
 	_test_endgame_ending_bands()
 	_test_endgame_autoload()
 	_test_map_projection_world_to_map()
+	_test_map_projection_canvas_fit()
 	_test_player_state_save_load()
 	_test_schema_parity_with_sidecar()
 	_test_prayer_parity_with_sidecar()
@@ -1864,6 +1865,28 @@ func _test_debug_log_panel() -> void:
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
+
+func _test_map_projection_canvas_fit() -> void:
+	print("[map projection canvas fit]")
+	# A canvas twice as wide as the map (same height): letterboxed left/right at uniform scale 1.
+	var canvas := Vector2(2000.0, 706.0)
+	var scale: float = minf(canvas.x / MapProjection.MAP_SIZE.x, canvas.y / MapProjection.MAP_SIZE.y)
+	_ok(is_equal_approx(scale, 1.0), "uniform scale is the limiting (height) ratio")
+	# Image origin maps to the centering offset, not the canvas origin.
+	var origin: Vector2 = MapProjection.image_to_canvas(canvas, Vector2.ZERO)
+	_ok(origin.is_equal_approx(Vector2(500.0, 0.0)), "image origin maps to the letterbox offset")
+	# The far map corner stays within the canvas and sits at the far letterbox edge.
+	var corner: Vector2 = MapProjection.image_to_canvas(canvas, MapProjection.MAP_SIZE)
+	_ok(corner.x <= canvas.x + 0.01 and corner.y <= canvas.y + 0.01, "MAP_SIZE corner stays within the canvas")
+	_ok(corner.is_equal_approx(Vector2(1500.0, 706.0)), "MAP_SIZE corner sits at the far letterbox edge")
+	# Aspect-preserving: a step in image x and an equal step in image y scale identically.
+	var dx: Vector2 = MapProjection.image_to_canvas(canvas, Vector2(10.0, 0.0)) - origin
+	var dy: Vector2 = MapProjection.image_to_canvas(canvas, Vector2(0.0, 10.0)) - origin
+	_ok(is_equal_approx(dx.x, dy.y), "x and y scale identically (no distortion)")
+	# Round-trip: canvas_to_image is the exact inverse of image_to_canvas.
+	var p := Vector2(640.0, 410.0)
+	var back: Vector2 = MapProjection.canvas_to_image(canvas, MapProjection.image_to_canvas(canvas, p))
+	_ok(back.is_equal_approx(p), "canvas_to_image(image_to_canvas(p)) == p")
 
 func _test_map_projection_world_to_map() -> void:
 	print("[map projection world_to_map]")
