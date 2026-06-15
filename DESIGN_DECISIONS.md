@@ -1027,3 +1027,47 @@ streetscape or changing any risk value.
 
 **Live tracker range is one district until sub-project 2.** `AgentRuntime.player_position` is real and the dot
 follows it, but only the Iron Cross region is currently walkable, so that is the dot's range for now.
+
+### Implementation notes — to-scale city world
+
+- **Single global uniform transform (`CITY_SCALE = 3.5`), map-image space canonical.**
+  *Alts (rejected):* (a) per-district piecewise remaps — keeps independent authoring, but
+  the tracker stays locally-correct-only and seams appear at district borders; (b) author
+  the world in world units and derive the map — inverts today's canonical source (the map
+  art) and makes the panel the derived artifact, more churn. The uniform transform makes
+  the existing `world_to_map` tracker correct city-wide for free.
+
+- **`CITY_SCALE = 3.5` (match today's feel).**
+  *Alts (rejected):* 1.0 (map px = world units) feels cramped — a district would be ~170
+  units, crossed in ~1.4 s; larger (e.g. 7×) makes the city a long boring walk. 3.5 keeps
+  the current Iron Cross district size and a ~29 s full-city traversal.
+
+- **Data-driven `city_layout.json` + pure `CityLayout` loader.**
+  *Alts (rejected):* hardcode geometry in `LiveDistrict` (current approach) — not
+  headless-testable, mixes data with scene wiring; a Godot `TileMap` — overkill for
+  polygonal building masses and harder to derive a navmesh from.
+
+- **Many small building-mass blocks (true buildings).**
+  *Alts (rejected):* a few large placeholder blocks — faster to author but reads as
+  abstract zones, not a city, and produces a coarse navmesh with unrealistic detours.
+  (User explicitly requested true small blocks.)
+
+- **Navmesh in this run, NPCs via `NavigationAgent2D`.**
+  *Alts (rejected):* defer navmesh and keep straight-line steering — NPCs would walk
+  through the new buildings, immediately visibly broken. (User explicitly approved building
+  the navmesh now.)
+
+- **Map underlay default ON, with a toggle; hidden later.**
+  *Alts (rejected):* no underlay — tracing blind against a separate window is error-prone;
+  underlay permanently on — defeats the goal of a self-contained vector world. Default ON
+  for tracing, flip OFF once geometry is faithful (per user: "do the underlay approach
+  first, then hide it").
+
+- **Full collision (water + every block) + city-edge boundary.**
+  *Alts (rejected):* visual-only / no collision — player walks through buildings and off
+  the map; collision on blocks only — player escapes off the city edge into the void.
+
+- **Modern source-geometry navmesh bake (`add_traversable_outline` / `add_obstruction_outline` + `bake_from_source_geometry_data`), nav-map cell size pinned to the 1.0 bake default.**
+  *Alts (rejected):* the deprecated `make_polygons_from_outlines` — emits warnings and is
+  slated for removal; leaving cell sizes unpinned — risks a silent "cell size mismatch"
+  that drops the region from the map and yields empty paths (the build's #1 navmesh risk).
