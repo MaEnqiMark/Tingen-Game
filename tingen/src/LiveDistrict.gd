@@ -48,11 +48,13 @@ const WAREHOUSE_FILL: Color = Color(0.235, 0.130, 0.130)
 const WAREHOUSE_EDGE: Color = Color(0.520, 0.225, 0.215)
 
 var _player: Node2D = null
+var _nav_region: NavigationRegion2D = null
 
 func _ready() -> void:
 	_build_underlay()
 	_build_city()
 	_build_boundary()
+	_build_navmesh()
 	_spawn_player()
 	_apply_camera_bounds()
 	_spawn_agents()
@@ -108,6 +110,25 @@ func _build_city() -> void:
 	for lm in layout.landmarks():
 		_place_label(s, (lm["pos"] as Vector2) + Vector2(-30, -22), String(lm["label"]),
 			Color(0.86, 0.84, 0.92), 13)
+
+## Bake the walkable navmesh from the SAME data the set is drawn from: the city outline is the
+## traversable area, every building block and water body is punched out as an obstruction. The
+## resulting NavigationRegion2D registers with the scene's default 2D nav map, which NPC
+## NavigationAgent2D nodes (Task 7) share automatically.
+func _build_navmesh() -> void:
+	var layout := CityLayout.load_default()
+	var holes: Array = []
+	holes.append_array(layout.blocks())
+	holes.append_array(layout.water())
+	var nav := CityLayout.build_nav_polygon(layout.outline(), holes)
+	# Align the scene's default 2D nav-map cell size with the NavigationPolygon bake default (1.0)
+	# so the region registers without a cell-size-mismatch warning — the #1 navmesh pitfall.
+	NavigationServer2D.map_set_cell_size(get_world_2d().navigation_map, 1.0)
+	var region := NavigationRegion2D.new()
+	region.name = "CityNav"
+	region.navigation_polygon = nav
+	add_child(region)
+	_nav_region = region
 
 ## The map art underlay: a Sprite2D covering exactly (0,0)-(3500,2471), behind everything. A
 ## tracing aid only — the vectors are the source of truth for collision/nav — so its visibility is
@@ -268,6 +289,16 @@ func boundary_wall_count() -> int:
 		if c.is_in_group("city_boundary"):
 			n += 1
 	return n
+
+## Number of baked polygons in the city navmesh (0 if the region is missing or failed to bake).
+func nav_region_baked() -> int:
+	if _nav_region == null or _nav_region.navigation_polygon == null:
+		return 0
+	return _nav_region.navigation_polygon.get_polygon_count()
+
+## The navigation map RID the city region — and every NPC NavigationAgent2D — share.
+func nav_map_rid() -> RID:
+	return _nav_region.get_navigation_map() if _nav_region != null else RID()
 
 # --- Cast -------------------------------------------------------------------------------
 func _spawn_player() -> void:

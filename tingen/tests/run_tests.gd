@@ -73,6 +73,7 @@ func _init() -> void:
 	await _test_character_card_opens()
 	await _test_live_district_wiring()
 	await _test_live_district_underlay_camera_bounds()
+	await _test_live_district_navmesh()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -1261,6 +1262,20 @@ func _test_live_district_underlay_camera_bounds() -> void:
 	_ok(scene.has_camera_bounds(), "player camera is bounded to the city rect")
 	# City-edge boundary: four world-boundary walls keep the player on the map.
 	_ok(scene.boundary_wall_count() == 4, "four city-edge boundary walls exist")
+	scene.queue_free()
+	await process_frame
+
+func _test_live_district_navmesh() -> void:
+	print("[live district navmesh]")
+	root.get_node("/root/Agents").rebuild()
+	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	await process_frame
+	# The region bakes from CityLayout (outline minus blocks/water) and has real polygons.
+	_ok(scene.nav_region_baked() > 0, "city navmesh region baked with polygons")
+	# It is attached to a live navigation map (the scene's default 2D map), shared with agents.
+	_ok(scene.nav_map_rid().is_valid(), "city nav region is on a valid navigation map")
 	scene.queue_free()
 	await process_frame
 
