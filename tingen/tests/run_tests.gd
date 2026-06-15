@@ -47,6 +47,9 @@ func _init() -> void:
 	_test_perception_snapshot()
 	_test_action_commit()
 	_test_coordinate_anchors_consistent()
+	_test_city_layout()
+	_test_city_layout_data()
+	await _test_navmesh_routing()
 	_test_ritual_step_advances_summoning()
 	_test_commit_sets_thought()
 	_test_action_attack()
@@ -584,6 +587,79 @@ func _test_coordinate_anchors_consistent() -> void:
 		"ActionCommit.SITES rite == map_to_world(WAREHOUSE_MAP)")
 	_ok(AmbientSidecar.WAREHOUSE.is_equal_approx(site_world),
 		"AmbientSidecar.WAREHOUSE == map_to_world(WAREHOUSE_MAP)")
+
+func _test_city_layout() -> void:
+	print("[city layout loader]")
+	var sample := {
+		"city_outline": [0, 0, 100, 0, 100, 100, 0, 100],
+		"water": [[80, 0, 100, 0, 100, 50, 80, 50]],
+		"blocks": [[10, 10, 30, 10, 30, 30, 10, 30], [40, 40, 60, 40, 60, 60, 40, 60]],
+		"landmarks": [{ "pos": [50, 50], "label": "Test Site" }],
+	}
+	var layout := CityLayout.from_dict(sample)
+	_ok(layout.outline().size() == 4, "outline parsed to 4 vertices")
+	_ok(layout.water().size() == 1, "one water polygon parsed")
+	_ok(layout.blocks().size() == 2, "two block polygons parsed")
+	# Transform correctness: a known map vertex comes back x3.5 in world space.
+	_ok(layout.outline()[1].is_equal_approx(Vector2(350.0, 0.0)), "map (100,0) -> world (350,0)")
+	_ok((layout.landmarks()[0]["pos"] as Vector2).is_equal_approx(Vector2(175.0, 175.0)),
+		"landmark map (50,50) -> world (175,175)")
+	_ok(String(layout.landmarks()[0]["label"]) == "Test Site", "landmark label preserved")
+
+func _test_city_layout_data() -> void:
+	print("[city layout data integrity]")
+	var path := "res://data/city_layout.json"
+	_ok(FileAccess.file_exists(path), "city_layout.json exists")
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	_ok(typeof(data) == TYPE_DICTIONARY, "city_layout.json parses to a Dictionary")
+	var d: Dictionary = data
+	_ok((d.get("blocks", []) as Array).size() >= 20, "at least 20 building blocks (a real city, not mega-blocks)")
+	# Every coordinate list is even-length and inside the map bounds (0,0)-(1000,706).
+	var all_polys: Array = []
+	all_polys.append(d.get("city_outline", []))
+	for w in d.get("water", []): all_polys.append(w)
+	for b in d.get("blocks", []): all_polys.append(b)
+	var clean := true
+	for poly in all_polys:
+		if (poly as Array).size() % 2 != 0 or (poly as Array).size() < 6:
+			clean = false
+		for i in range((poly as Array).size()):
+			var v := float(poly[i])
+			var bound := 1000.0 if i % 2 == 0 else 706.0
+			if v < 0.0 or v > bound:
+				clean = false
+	_ok(clean, "all outline/water/block vertices are even-length and within map bounds")
+
+func _test_navmesh_routing() -> void:
+	print("[navmesh routing]")
+	# A 400x400 walkable square with a 120x120 block dead center.
+	var outline := PackedVector2Array([Vector2(0, 0), Vector2(400, 0), Vector2(400, 400), Vector2(0, 400)])
+	var hole := PackedVector2Array([Vector2(140, 140), Vector2(260, 140), Vector2(260, 260), Vector2(140, 260)])
+	var nav := CityLayout.build_nav_polygon(outline, [hole])
+	_ok(nav.get_polygon_count() > 0, "baked navigation polygon has polygons")
+	# Stand up a standalone nav map, attach a region, and query a path that must pass the block.
+	var map := NavigationServer2D.map_create()
+	NavigationServer2D.map_set_active(map, true)
+	# Align the map's cell size with the NavigationPolygon bake default (1.0) so the region's
+	# polygons register cleanly. If a path is unexpectedly empty, this is the first knob to check.
+	NavigationServer2D.map_set_cell_size(map, 1.0)
+	var region := NavigationServer2D.region_create()
+	NavigationServer2D.region_set_map(region, map)
+	NavigationServer2D.region_set_navigation_polygon(region, nav)
+	NavigationServer2D.map_force_update(map)
+	# NavigationServer2D syncs during physics ticks; a short timer lets a real frame elapse.
+	await create_timer(0.05).timeout
+	NavigationServer2D.map_force_update(map)
+	var path := NavigationServer2D.map_get_path(map, Vector2(20, 200), Vector2(380, 200), true)
+	_ok(path.size() >= 2, "a path exists across the square")
+	_ok(path.size() >= 3, "the path bends around the central block (has an intermediate waypoint)")
+	var inside_block := false
+	for p in path:
+		if p.x > 140.0 and p.x < 260.0 and p.y > 140.0 and p.y < 260.0:
+			inside_block = true
+	_ok(not inside_block, "no path point lies inside the block")
+	NavigationServer2D.free_rid(region)
+	NavigationServer2D.free_rid(map)
 
 func _test_commit_sets_thought() -> void:
 	print("[commit thought]")
