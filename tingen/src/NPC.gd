@@ -1,8 +1,9 @@
 extends CharacterBody2D
 ## Stub NPC agent (GDD §15 / §22.3). Reads its definition + phase schedule from NpcDB,
-## re-targets its waypoint on Clock.phase_changed, and straight-line steers toward it.
-## Pathfinding is intentionally simple (move_and_slide with wall sliding) — the
-## schedule logic is the art-agnostic part; a real navmesh/A* is later polish.
+## re-targets its waypoint on Clock.phase_changed, and paths toward it along the city
+## navmesh via a NavigationAgent2D, falling back to straight-line steering when no path
+## exists (an NPC spawned outside the live district, or before the nav map has synced).
+## The schedule/binding logic is the art-agnostic part.
 ##
 ## If its definition has a dialogue_id, the player can talk to it (E when near).
 
