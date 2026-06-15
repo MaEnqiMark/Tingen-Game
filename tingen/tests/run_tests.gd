@@ -1230,12 +1230,15 @@ func _test_live_district_wiring() -> void:
 			npc_count += 1
 	_ok(npc_count == Ag.all().size(), "spawns one NPC per registry agent")
 	_ok(AR.player_position == scene.player_start, "runtime player_position fed from the live player")
-	# Procedural streetscape: the set is dressed (not a void) and names the cult's rite site.
+	_ok(scene.player_start.is_equal_approx(Vector2(1645, 1260)), "player starts on a street near the rite site")
+	# The city is built data-driven from CityLayout: every block and water body is realized.
+	var layout := CityLayout.load_default()
+	_ok(scene.city_block_count() == layout.blocks().size() and scene.city_block_count() >= 20,
+		"one solid collider per building block (>= 20)")
+	_ok(scene.city_water_count() == layout.water().size(), "one solid collider per water body")
 	var street: Node = scene.get_node_or_null("Streetscape")
 	_ok(street != null, "live district builds a streetscape")
-	_ok(street != null and street.get_child_count() >= 15, "streetscape is richly dressed")
 	_ok(scene.has_warehouse_marker(), "streetscape marks the warehouse (rite site)")
-	# The player's hands-on counter to the rite: a sabotage interactable stands at the warehouse.
 	_ok(scene.has_method("has_sabotage_point") and scene.has_sabotage_point(),
 		"streetscape places a sabotage interactable at the rite site")
 	scene.queue_free()
