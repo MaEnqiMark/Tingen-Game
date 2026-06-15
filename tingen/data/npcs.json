@@ -22,8 +22,8 @@
 		"intent": "Move ritual ingredients through the harbor to the warehouse, and run decoy errands that mislead anyone investigating the cell.",
 		"tint": [0.5, 0.7, 0.65],
 		"schedule": {
-			"morning": [2010, 1167],
-			"afternoon": [1848, 1178],
+			"morning": [2010, 1260],
+			"afternoon": [1848, 1260],
 			"dusk": [1812, 1242],
 			"night": [1757, 1284]
 		}
@@ -36,7 +36,7 @@
 		"intent": "Scout the district while lighting the lamps, reporting movements to Voss. Increasingly doubts what the cell is about to do, and can be turned by someone who reaches him.",
 		"tint": [0.85, 0.7, 0.4],
 		"schedule": {
-			"early-morning": [1703, 1125],
+			"early-morning": [1703, 1050],
 			"morning": [1595, 1220],
 			"afternoon": [1884, 1220],
 			"dusk": [1866, 1284],
@@ -52,7 +52,7 @@
 		"intent": "Get through the workday and back home. Unaware that the cell has marked him as the intended sacrifice for the summoning.",
 		"tint": [0.7, 0.65, 0.55],
 		"schedule": {
-			"morning": [1866, 1093],
+			"morning": [1866, 1260],
 			"afternoon": [1866, 1284],
 			"dusk": [1848, 1306],
 			"night": [1721, 1220]

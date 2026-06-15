@@ -185,7 +185,7 @@ func _fill(parent: Node2D, poly: PackedVector2Array, color: Color) -> void:
 
 func _outline(parent: Node2D, poly: PackedVector2Array, color: Color, w: float) -> void:
 	var l := Line2D.new()
-	var pts := poly
+	var pts := poly.duplicate()   # PackedVector2Array shares its buffer on assign; copy before mutating
 	pts.append(poly[0])   # close the loop
 	l.points = pts
 	l.width = w

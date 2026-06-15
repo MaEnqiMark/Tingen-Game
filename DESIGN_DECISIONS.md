@@ -1071,3 +1071,34 @@ follows it, but only the Iron Cross region is currently walkable, so that is the
   *Alts (rejected):* the deprecated `make_polygons_from_outlines` — emits warnings and is
   slated for removal; leaving cell sizes unpinned — risks a silent "cell size mismatch"
   that drops the region from the map and yields empty paths (the build's #1 navmesh risk).
+
+### Implementation notes — final-review remediation
+
+- **Keep NPC waypoints walkable by nudging the data, guarded by a test.** Four scheduled
+  waypoints (Dalia morning/afternoon, Orin early-morning, Pell morning) had been authored
+  inside building blocks; an in-obstacle goal is unreachable on the navmesh, so the NPC's
+  `NavigationAgent2D` returns no path and it straight-lines into a wall. Moved the cult
+  logistics/victim beats south into the warehouse courtyard (where they thematically belong)
+  and the lamplighter-scout north onto the open street, and added a data-integrity test that
+  fails if any waypoint lands in a block/water or outside the outline.
+  *Alts (rejected):* runtime goal-snapping via `NavigationServer2D.map_get_closest_point()`
+  before the straight-line fallback — robust to bad data, but adds a per-NPC cost every frame
+  to paper over authoring mistakes the test now catches at build time; widen `arrive_radius`
+  — hides the symptom without fixing the unreachable goal.
+
+- **Treat `_outline`'s polygon as read-only (`poly.duplicate()`), guarded by a purity test.**
+  `PackedVector2Array` assignment shares its backing buffer, so the old `var pts := poly;
+  pts.append(...)` mutated the very array the collision body (and any future shared navmesh)
+  is built from. Harmless today (a duplicate closing vertex is a zero-length edge, and the
+  navmesh re-parses a fresh layout), but a trap the moment the double-parse is deduped.
+  *Alts (rejected):* leave it and rely on the fresh re-parse — keeps a latent footgun that
+  would silently corrupt navmesh holes after an unrelated refactor.
+
+- **Poll the nav map until a path appears, instead of one fixed post-update sleep.**
+  `NavigationServer2D` commits region changes on a physics-frame boundary, so a single
+  `await create_timer(0.05)` after `map_force_update` was racy under the headless loop
+  (~1-in-4 cold runs returned an empty path). The navmesh tests now force-update and step
+  real frames until a path returns (small budget, usually one iteration).
+  *Alts (rejected):* a longer fixed sleep — slows every run and still races on a slow host;
+  asserting only `get_polygon_count()` and dropping the routing assertion — loses the proof
+  that NPCs can actually path around the blocks.

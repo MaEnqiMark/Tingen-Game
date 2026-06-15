@@ -49,6 +49,7 @@ func _init() -> void:
 	_test_coordinate_anchors_consistent()
 	_test_city_layout()
 	_test_city_layout_data()
+	_test_npc_waypoints_walkable()
 	await _test_navmesh_routing()
 	_test_ritual_step_advances_summoning()
 	_test_commit_sets_thought()
@@ -75,6 +76,7 @@ func _init() -> void:
 	await _test_live_district_underlay_camera_bounds()
 	await _test_live_district_navmesh()
 	await _test_npc_navmesh_pathfinding()
+	_test_outline_does_not_mutate_input()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -633,6 +635,46 @@ func _test_city_layout_data() -> void:
 				clean = false
 	_ok(clean, "all outline/water/block vertices are even-length and within map bounds")
 
+func _test_npc_waypoints_walkable() -> void:
+	print("[npc waypoints walkable]")
+	# Every scheduled NPC waypoint (world space, in npcs.json) must sit on walkable ground: inside
+	# the city outline and clear of every building block and water body. A goal inside an obstacle
+	# is unreachable on the navmesh, so the NPC's NavigationAgent2D yields no path and it straight-
+	# line-steers into a wall — exactly the cosmetic break this guards against.
+	var layout := CityLayout.load_default()
+	var outline := layout.outline()
+	var blocks := layout.blocks()
+	var water := layout.water()
+	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/npcs.json"))
+	var npcs: Dictionary = raw
+	for npc_id in npcs:
+		var sched: Dictionary = (npcs[npc_id] as Dictionary).get("schedule", {})
+		for phase in sched:
+			var arr: Array = sched[phase]
+			var wp := Vector2(float(arr[0]), float(arr[1]))
+			var walkable := Geometry2D.is_point_in_polygon(wp, outline)
+			for b in blocks:
+				if Geometry2D.is_point_in_polygon(wp, b):
+					walkable = false
+			for w in water:
+				if Geometry2D.is_point_in_polygon(wp, w):
+					walkable = false
+			_ok(walkable, "%s/%s waypoint is on walkable ground" % [npc_id, phase])
+
+## NavigationServer2D commits region changes on a physics-frame boundary, so a single fixed sleep
+## after map_force_update is racy under the headless test loop (occasionally an empty path). Force-
+## update and step real frames until the map returns a path, or a small budget runs out — usually
+## one iteration, never flaky.
+func _await_nav_path(map: RID, from: Vector2, to: Vector2) -> PackedVector2Array:
+	var path := PackedVector2Array()
+	for _i in range(20):
+		NavigationServer2D.map_force_update(map)
+		await create_timer(0.02).timeout
+		path = NavigationServer2D.map_get_path(map, from, to, true)
+		if path.size() >= 2:
+			break
+	return path
+
 func _test_navmesh_routing() -> void:
 	print("[navmesh routing]")
 	# A 400x400 walkable square with a 120x120 block dead center.
@@ -649,11 +691,7 @@ func _test_navmesh_routing() -> void:
 	var region := NavigationServer2D.region_create()
 	NavigationServer2D.region_set_map(region, map)
 	NavigationServer2D.region_set_navigation_polygon(region, nav)
-	NavigationServer2D.map_force_update(map)
-	# NavigationServer2D syncs during physics ticks; a short timer lets a real frame elapse.
-	await create_timer(0.05).timeout
-	NavigationServer2D.map_force_update(map)
-	var path := NavigationServer2D.map_get_path(map, Vector2(20, 200), Vector2(380, 200), true)
+	var path := await _await_nav_path(map, Vector2(20, 200), Vector2(380, 200))
 	_ok(path.size() >= 2, "a path exists across the square")
 	_ok(path.size() >= 3, "the path bends around the central block (has an intermediate waypoint)")
 	var inside_block := false
@@ -1299,14 +1337,27 @@ func _test_npc_navmesh_pathfinding() -> void:
 	_ok(agent != null and agent.get_navigation_map() == scene.nav_map_rid(),
 		"the NPC agent shares the city navigation map")
 	# The shared map routes between two open street points (proves NPCs can path around blocks).
-	NavigationServer2D.map_force_update(scene.nav_map_rid())
-	await create_timer(0.05).timeout
 	var from_w := MapProjection.map_to_world(Vector2(470, 360))   # open street by the player start
 	var to_w := MapProjection.map_to_world(Vector2(515, 372))     # the warehouse rite door
-	var path := NavigationServer2D.map_get_path(scene.nav_map_rid(), from_w, to_w, true)
+	var path := await _await_nav_path(scene.nav_map_rid(), from_w, to_w)
 	_ok(path.size() >= 2, "the city nav map returns a path between two street points")
 	scene.queue_free()
 	await process_frame
+
+func _test_outline_does_not_mutate_input() -> void:
+	print("[live district outline purity]")
+	# _build_city fills, outlines, then solidifies each polygon in turn, all from the SAME
+	# CityLayout array. _outline must therefore treat its polygon as read-only — PackedVector2Array
+	# assignment shares the buffer, so a naive `var pts := poly; pts.append(...)` would corrupt the
+	# array the collision body (and a future shared navmesh) is then built from.
+	var ld = load("res://src/LiveDistrict.gd").new()
+	var parent := Node2D.new()
+	var poly := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
+	var before := poly.size()
+	ld._outline(parent, poly, Color.WHITE, 1.0)
+	_ok(poly.size() == before, "_outline leaves its input polygon unmutated (%d == %d)" % [poly.size(), before])
+	parent.free()
+	ld.free()
 
 func _test_occult_divination() -> void:
 	print("[occult divination]")
