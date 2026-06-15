@@ -40,3 +40,8 @@ offset_right = 40.0
 offset_bottom = 48.0
 horizontal_alignment = 1
 text = "Talk"
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 8.0
+target_desired_distance = 8.0
+avoidance_enabled = false

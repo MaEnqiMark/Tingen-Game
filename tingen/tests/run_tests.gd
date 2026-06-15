@@ -74,6 +74,7 @@ func _init() -> void:
 	await _test_live_district_wiring()
 	await _test_live_district_underlay_camera_bounds()
 	await _test_live_district_navmesh()
+	await _test_npc_navmesh_pathfinding()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -1276,6 +1277,34 @@ func _test_live_district_navmesh() -> void:
 	_ok(scene.nav_region_baked() > 0, "city navmesh region baked with polygons")
 	# It is attached to a live navigation map (the scene's default 2D map), shared with agents.
 	_ok(scene.nav_map_rid().is_valid(), "city nav region is on a valid navigation map")
+	scene.queue_free()
+	await process_frame
+
+func _test_npc_navmesh_pathfinding() -> void:
+	print("[npc navmesh pathfinding]")
+	root.get_node("/root/Agents").rebuild()
+	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	await process_frame
+	# Each spawned NPC carries a NavigationAgent2D bound to the shared city nav map.
+	var npc: Node = null
+	for c in scene.get_children():
+		if c.is_in_group("npc"):
+			npc = c
+			break
+	_ok(npc != null, "at least one NPC spawned in the live district")
+	var agent = npc.get_node_or_null("NavigationAgent2D") if npc != null else null
+	_ok(agent != null, "the NPC scene carries a NavigationAgent2D")
+	_ok(agent != null and agent.get_navigation_map() == scene.nav_map_rid(),
+		"the NPC agent shares the city navigation map")
+	# The shared map routes between two open street points (proves NPCs can path around blocks).
+	NavigationServer2D.map_force_update(scene.nav_map_rid())
+	await create_timer(0.05).timeout
+	var from_w := MapProjection.map_to_world(Vector2(470, 360))   # open street by the player start
+	var to_w := MapProjection.map_to_world(Vector2(515, 372))     # the warehouse rite door
+	var path := NavigationServer2D.map_get_path(scene.nav_map_rid(), from_w, to_w, true)
+	_ok(path.size() >= 2, "the city nav map returns a path between two street points")
 	scene.queue_free()
 	await process_frame
 

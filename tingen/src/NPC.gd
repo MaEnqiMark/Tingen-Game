@@ -13,6 +13,7 @@ extends CharacterBody2D
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _name_label: Label = $Name
 @onready var _prompt: Label = $TalkArea/Prompt
+@onready var _nav: NavigationAgent2D = $NavigationAgent2D
 
 var _def: Dictionary = {}
 var _target: Vector2
@@ -63,12 +64,19 @@ func _physics_process(_delta: float) -> void:
 	if DialogueManager.active:
 		velocity = Vector2.ZERO
 		return
-	var to_target := steer_goal() - global_position
-	if to_target.length() <= arrive_radius:
+	var goal := steer_goal()
+	if global_position.distance_to(goal) <= arrive_radius:
 		velocity = Vector2.ZERO
-	else:
-		velocity = to_target.normalized() * move_speed
-		move_and_slide()
+		return
+	# Path around the city's buildings/water on the baked navmesh. Fall back to straight-line
+	# steering when there is no usable path — an NPC instantiated outside the live district (e.g.
+	# the bind unit-test), or before the nav map has synced — so isolated behavior still holds.
+	_nav.target_position = goal
+	var steer_point := goal
+	if not _nav.is_navigation_finished() and _nav.is_target_reachable():
+		steer_point = _nav.get_next_path_position()
+	velocity = (steer_point - global_position).normalized() * move_speed
+	move_and_slide()
 
 func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("player") and _can_talk():
