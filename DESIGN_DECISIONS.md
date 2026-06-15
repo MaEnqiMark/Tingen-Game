@@ -1102,3 +1102,62 @@ follows it, but only the Iron Cross region is currently walkable, so that is the
   *Alts (rejected):* a longer fixed sleep — slows every run and still races on a slow host;
   asserting only `get_polygon_count()` and dropping the routing assertion — loses the proof
   that NPCs can actually path around the blocks.
+
+### Implementation notes — authored traversal scene (CityBlocks.tscn)
+
+- **Hand-authored ~50-building scene baked into `scenes/CityBlocks.tscn` as plain editor
+  nodes — no scripts, no `@tool`, no runtime construction.** The procedural builder
+  (`LiveDistrict.gd`, which constructs the whole city in `_ready()`) produced a city that
+  was too small in scale, too sparse (only a handful of boxes), and invisible/uneditable in
+  the editor viewport. Per the user's pivot ("stop making it procedural, I want everything
+  in the editor"), the new scene is an 8×7 grid (2400×1700 world units) with a central 2×3
+  plaza skipped, yielding 50 `StaticBody2D` buildings — each a `Polygon2D` + matching
+  `CollisionPolygon2D` — wrapped in a `Buildings` container, with a 4-wall perimeter
+  (`Walls`), a `Ground` polygon, and a `Player` instance spawned in the plaza center
+  (1200,850) so the spawn can never land inside a building. Everything is a real node in the
+  scene tree: selectable, movable, and editable in the Godot editor. A guard test
+  (`_test_city_blocks_scene`) asserts the Buildings container exists, ~50 bodies are present,
+  every body has a ≥3-point collider, and a Player is included, so the authored structure
+  can't silently regress.
+  *Alts (rejected):* keep the procedural `LiveDistrict` build — rejected by the user, and
+  it leaves nothing to edit in the viewport; make the builder `@tool` so it draws in-editor —
+  still generated rather than authored, and bakes a brittle generator into edit-time;
+  trace the city true-to-scale from `tingen_map.png` — explicitly discarded "for now" in
+  favor of a simple walkable grid. Kept `LiveDistrict.tscn` untouched (still booted by
+  `Main.tscn`) so the existing 539-assertion suite stays green; `CityBlocks.tscn` is
+  standalone (open + F6) until the user asks to wire it into `Main.tscn`.
+  > **Superseded (see next entry):** `LiveDistrict.tscn`/`.gd` were later fully retired and
+  > `Main.tscn` now boots `CityBlocks.tscn`. The "kept untouched / standalone" clause above
+  > no longer holds.
+
+### Implementation notes — retire LiveDistrict, boot CityBlocks, migrate the demo parts
+
+- **Made `CityBlocks.tscn` the real world: rewired `Main.tscn`'s `World` subtree to instance
+  it, deleted the procedural `LiveDistrict` stack and the old `City.tscn`/`IntroMain.tscn`
+  hubs, and moved the demo parts (two NPCs + the interior-room transition doors + the
+  `DayNight` tint) into `CityBlocks.tscn`.** Once the authored scene replaced the procedural
+  build there was no reason to keep two parallel worlds, so `LiveDistrict.tscn`,
+  `src/LiveDistrict.gd` (+`.uid`), `scenes/City.tscn`, and `scenes/IntroMain.tscn` were
+  removed outright. `GameController` is world-agnostic (it records `World.get_child(0)`'s
+  `scene_file_path` and hot-swaps on `WorldState.transition_requested`), so the boot rewire
+  was a one-line ext_resource/node-name change in `Main.tscn` — no controller code touched.
+  The migrated demo parts were repositioned into the open central plaza of the 8×7 grid:
+  `Orin` (lamplighter) and `Dalia` (fishwife) NPCs, a `Nighthawk` talk hotspot, and the two
+  doors — `HQDoor` → `NighthawksHQ.tscn` and `UniversityDoor` → `UniversityArchive.tscn`,
+  each carrying its `lead_on_use` line. The three interior scenes' return doors
+  (`IntroRoom`, `NighthawksHQ`, `UniversityArchive`) were repointed `City.tscn` →
+  `CityBlocks.tscn`.
+  *Tests:* extended `_test_city_blocks_scene` with four demo-part guards (4-wall ring,
+  ≥2 NPCs, an HQ door, an Archive door); removed the five `LiveDistrict`-coupled suite
+  functions (19 assertions: spawn-per-agent, player-start, block/water counts, underlay
+  camera bounds, navmesh bake, NPC pathfinding, outline-immutability) since their scene is
+  gone — net suite **548 → 529 passed, 0 failed**. The three standalone interior wiring
+  tests were repointed to load `CityBlocks.tscn` and now find the HQ/Archive doors there
+  (13 / 19 / 11, all green). A throwaway boot smoke confirmed `Main.tscn` hot-loads
+  `CityBlocks.tscn` with both NPCs and both interior doors live in the running tree.
+  *Alts (rejected):* keep `LiveDistrict.tscn` as a second bootable world — leaves two
+  divergent city scenes to maintain and a dead procedural builder; delete `CityLayout.gd`
+  + `city_layout.json` too (they only ever fed `LiveDistrict`) — out of scope and the loader
+  is a harmless, headless-testable seam, so it was left in place (now unused, not broken);
+  leave the interior return doors pointing at the deleted `City.tscn` — would dangle and
+  break the back-transition, so they were repointed.

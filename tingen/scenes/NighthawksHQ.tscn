@@ -121,7 +121,7 @@ tint = Color(0.7, 0.72, 0.78, 0)
 position = Vector2(448, 525)
 prompt_text = "Leave — out to the city"
 tint = Color(0.7, 0.72, 0.78, 0)
-target_scene = "res://scenes/City.tscn"
+target_scene = "res://scenes/CityBlocks.tscn"
 
 [node name="Hint" type="Label" parent="."]
 offset_left = 300.0

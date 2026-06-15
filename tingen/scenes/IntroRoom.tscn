@@ -147,7 +147,7 @@ clue_id = "wrong_reflection"
 position = Vector2(845, 400)
 prompt_text = "Open the door"
 tint = Color(0.7, 0.55, 0.4, 0)
-target_scene = "res://scenes/City.tscn"
+target_scene = "res://scenes/CityBlocks.tscn"
 lead_on_use = "线索：寻找值夜者 (Find the Nighthawks)."
 
 [node name="Hint" type="Label" parent="."]

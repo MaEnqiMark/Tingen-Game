@@ -14,7 +14,7 @@ var _last_result: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Guard mirrors LiveDistrict: keep the headless suite (which can fire the climax many times)
+	# Idempotent connect guard: keep the headless suite (which can fire the climax many times)
 	# and any re-add from a world swap from double-connecting.
 	if not SummoningPlan.summoning_climax.is_connected(_on_climax):
 		SummoningPlan.summoning_climax.connect(_on_climax)

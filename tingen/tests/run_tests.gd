@@ -72,11 +72,7 @@ func _init() -> void:
 	await _test_npc_binds_to_agent()
 	_test_inspect_signal()
 	await _test_character_card_opens()
-	await _test_live_district_wiring()
-	await _test_live_district_underlay_camera_bounds()
-	await _test_live_district_navmesh()
-	await _test_npc_navmesh_pathfinding()
-	_test_outline_does_not_mutate_input()
+	await _test_city_blocks_scene()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -1256,108 +1252,63 @@ func _test_character_card_opens() -> void:
 	card.queue_free()
 	await process_frame
 
-func _test_live_district_wiring() -> void:
-	print("[live district]")
-	var Ag: Object = root.get_node("/root/Agents")
-	var AR: Object = root.get_node("/root/AgentRuntime")
-	Ag.rebuild()
-	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
+func _test_city_blocks_scene() -> void:
+	print("[city blocks scene]")
+	# Hand-authored traversal map: ~50 building bodies + a player, all real nodes baked into the
+	# scene file (no runtime/procedural construction). Guard the authored structure so it can't
+	# silently regress: the Buildings container exists, every building is a solid StaticBody2D with
+	# a collision polygon, and a Player is present so the scene is walkable on its own.
+	var packed: PackedScene = load("res://scenes/CityBlocks.tscn")
+	_ok(packed != null, "CityBlocks.tscn exists and loads")
+	if packed == null:
+		return
+	var scene = packed.instantiate()
 	root.add_child(scene)
 	await process_frame
 	await process_frame
+	var buildings: Node = scene.get_node_or_null("Buildings")
+	_ok(buildings != null, "scene has a Buildings container")
+	var bodies: Array = []
+	if buildings != null:
+		for c in buildings.get_children():
+			if c is StaticBody2D:
+				bodies.append(c)
+	_ok(bodies.size() >= 45 and bodies.size() <= 60,
+		"~50 building bodies authored (got %d)" % bodies.size())
+	var all_have_collider := bodies.size() > 0
+	for b in bodies:
+		var cp: Node = b.get_node_or_null("CollisionPolygon2D")
+		if cp == null or (cp as CollisionPolygon2D).polygon.size() < 3:
+			all_have_collider = false
+	_ok(all_have_collider, "every building has a CollisionPolygon2D collider (>= 3 pts)")
+	_ok(scene.get_node_or_null("Player") != null, "scene includes a Player for traversal")
+	# Demo parts moved here from the retired City.tscn hub: the city-edge wall ring keeps the
+	# player on the map, two interior-room transition doors lead to the Nighthawks HQ and the
+	# University archive, and at least the demo NPCs (Orin, Dalia) populate the streets -- all
+	# authored editor nodes living directly in this scene.
+	var walls: Node = scene.get_node_or_null("Walls")
+	var wall_bodies := 0
+	if walls != null:
+		for c in walls.get_children():
+			if c is StaticBody2D:
+				wall_bodies += 1
+	_ok(wall_bodies == 4, "four city-edge boundary walls keep the player on the map (got %d)" % wall_bodies)
+	var door_targets: Array = []
 	var npc_count := 0
-	for c in scene.get_children():
-		if c.is_in_group("npc"):
+	for n in scene.get_children():
+		if n.is_in_group("npc"):
 			npc_count += 1
-	_ok(npc_count == Ag.all().size(), "spawns one NPC per registry agent")
-	_ok(AR.player_position == scene.player_start, "runtime player_position fed from the live player")
-	_ok(scene.player_start.is_equal_approx(Vector2(1645, 1260)), "player starts on a street near the rite site")
-	# The city is built data-driven from CityLayout: every block and water body is realized.
-	var layout := CityLayout.load_default()
-	_ok(scene.city_block_count() == layout.blocks().size() and scene.city_block_count() >= 20,
-		"one solid collider per building block (>= 20)")
-	_ok(scene.city_water_count() == layout.water().size(), "one solid collider per water body")
-	var street: Node = scene.get_node_or_null("Streetscape")
-	_ok(street != null, "live district builds a streetscape")
-	_ok(scene.has_warehouse_marker(), "streetscape marks the warehouse (rite site)")
-	_ok(scene.has_method("has_sabotage_point") and scene.has_sabotage_point(),
-		"streetscape places a sabotage interactable at the rite site")
+		if n.is_in_group("interactable"):
+			var t: Variant = n.get("target_scene")
+			if typeof(t) == TYPE_STRING and t != "":
+				door_targets.append(t)
+	_ok(npc_count >= 2, "demo NPCs authored into the city (got %d)" % npc_count)
+	_ok(door_targets.has("res://scenes/NighthawksHQ.tscn"),
+		"a transition door leads to the Nighthawks HQ interior")
+	_ok(door_targets.has("res://scenes/UniversityArchive.tscn"),
+		"a transition door leads to the University archive interior")
 	scene.queue_free()
 	await process_frame
-
-func _test_live_district_underlay_camera_bounds() -> void:
-	print("[live district underlay/camera/bounds]")
-	root.get_node("/root/Agents").rebuild()
-	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
-	root.add_child(scene)
-	await process_frame
-	await process_frame
-	# Underlay: a map Sprite2D, visible by default (for tracing), toggleable.
-	_ok(scene.underlay_visible(), "map underlay is ON by default (for tracing fidelity)")
-	scene.set_underlay_visible(false)
-	_ok(not scene.underlay_visible(), "underlay can be toggled off")
-	scene.set_underlay_visible(true)
-	# Camera bounds: the player's Camera2D is limited to the (0,0)-(3500,2471) city rect.
-	_ok(scene.has_camera_bounds(), "player camera is bounded to the city rect")
-	# City-edge boundary: four world-boundary walls keep the player on the map.
-	_ok(scene.boundary_wall_count() == 4, "four city-edge boundary walls exist")
-	scene.queue_free()
-	await process_frame
-
-func _test_live_district_navmesh() -> void:
-	print("[live district navmesh]")
-	root.get_node("/root/Agents").rebuild()
-	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
-	root.add_child(scene)
-	await process_frame
-	await process_frame
-	# The region bakes from CityLayout (outline minus blocks/water) and has real polygons.
-	_ok(scene.nav_region_baked() > 0, "city navmesh region baked with polygons")
-	# It is attached to a live navigation map (the scene's default 2D map), shared with agents.
-	_ok(scene.nav_map_rid().is_valid(), "city nav region is on a valid navigation map")
-	scene.queue_free()
-	await process_frame
-
-func _test_npc_navmesh_pathfinding() -> void:
-	print("[npc navmesh pathfinding]")
-	root.get_node("/root/Agents").rebuild()
-	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
-	root.add_child(scene)
-	await process_frame
-	await process_frame
-	# Each spawned NPC carries a NavigationAgent2D bound to the shared city nav map.
-	var npc: Node = null
-	for c in scene.get_children():
-		if c.is_in_group("npc"):
-			npc = c
-			break
-	_ok(npc != null, "at least one NPC spawned in the live district")
-	var agent = npc.get_node_or_null("NavigationAgent2D") if npc != null else null
-	_ok(agent != null, "the NPC scene carries a NavigationAgent2D")
-	_ok(agent != null and agent.get_navigation_map() == scene.nav_map_rid(),
-		"the NPC agent shares the city navigation map")
-	# The shared map routes between two open street points (proves NPCs can path around blocks).
-	var from_w := MapProjection.map_to_world(Vector2(470, 360))   # open street by the player start
-	var to_w := MapProjection.map_to_world(Vector2(515, 372))     # the warehouse rite door
-	var path := await _await_nav_path(scene.nav_map_rid(), from_w, to_w)
-	_ok(path.size() >= 2, "the city nav map returns a path between two street points")
-	scene.queue_free()
-	await process_frame
-
-func _test_outline_does_not_mutate_input() -> void:
-	print("[live district outline purity]")
-	# _build_city fills, outlines, then solidifies each polygon in turn, all from the SAME
-	# CityLayout array. _outline must therefore treat its polygon as read-only — PackedVector2Array
-	# assignment shares the buffer, so a naive `var pts := poly; pts.append(...)` would corrupt the
-	# array the collision body (and a future shared navmesh) is then built from.
-	var ld = load("res://src/LiveDistrict.gd").new()
-	var parent := Node2D.new()
-	var poly := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
-	var before := poly.size()
-	ld._outline(parent, poly, Color.WHITE, 1.0)
-	_ok(poly.size() == before, "_outline leaves its input polygon unmutated (%d == %d)" % [poly.size(), before])
-	parent.free()
-	ld.free()
 
 func _test_occult_divination() -> void:
 	print("[occult divination]")

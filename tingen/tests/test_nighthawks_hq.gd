@@ -3,7 +3,7 @@ extends SceneTree
 ## Mirrors test_intro_room.gd: asserts the baked room photo as a Sprite2D background,
 ## furniture/wall colliders on a Solids StaticBody2D, the player + room camera, the
 ## captain (talk) / case board (examine) / door (transition) interactables, and the two
-## data edits (captain dialogue tree + captain_briefing clue) plus the City -> HQ door.
+## data edits (captain dialogue tree + captain_briefing clue) plus the CityBlocks -> HQ door.
 ## Run:  <godot> --headless --path tingen -s tests/test_nighthawks_hq.gd
 
 var _passed := 0
@@ -57,18 +57,18 @@ func _init() -> void:
 	# Atmosphere examine point present.
 	_ok(room.get_node_or_null("CaseBoard") != null, "CaseBoard present")
 
-	# Door is an invisible hotspot back to the City (no sprite of its own).
+	# Door is an invisible hotspot back to the city map (no sprite of its own).
 	var door: Node = room.get_node_or_null("Door")
 	_ok(door != null and door.get("icon") == null,
 		"Door is an invisible hotspot (no icon)")
-	_ok(door != null and door.get("target_scene") == "res://scenes/City.tscn",
-		"Door -> City.tscn")
+	_ok(door != null and door.get("target_scene") == "res://scenes/CityBlocks.tscn",
+		"Door -> CityBlocks.tscn")
 
 	# Data edits: dialogue tree + clue.
 	_check_json_has_key("res://data/dialogue.json", "captain", "dialogue.json has 'captain' tree")
 	_check_clue_exists("captain_briefing")
 
-	# City hub wiring: a door interactable targets the HQ.
+	# CityBlocks hub wiring: a door interactable targets the HQ.
 	_check_city_hq_door()
 
 	_finish()
@@ -92,9 +92,9 @@ func _check_clue_exists(clue_id: String) -> void:
 	_ok(found, "clues.json has '%s'" % clue_id)
 
 func _check_city_hq_door() -> void:
-	var packed: PackedScene = load("res://scenes/City.tscn")
+	var packed: PackedScene = load("res://scenes/CityBlocks.tscn")
 	if packed == null:
-		_ok(false, "City.tscn loads")
+		_ok(false, "CityBlocks.tscn loads")
 		return
 	var city: Node = packed.instantiate()
 	var found := false
@@ -103,7 +103,7 @@ func _check_city_hq_door() -> void:
 			found = true
 			break
 	city.free()
-	_ok(found, "City has a door -> NighthawksHQ.tscn")
+	_ok(found, "CityBlocks has a door -> NighthawksHQ.tscn")
 
 func _ok(cond: bool, label: String) -> void:
 	if cond:

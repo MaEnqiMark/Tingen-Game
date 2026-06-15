@@ -2,8 +2,8 @@ class_name CityLayout
 extends RefCounted
 ## Pure, node-free loader for the canonical city authoring data (data/city_layout.json).
 ## Parses the map-pixel-space JSON, applies MapProjection.map_to_world so callers receive
-## WORLD-space geometry, and exposes typed getters. This is the headless-testable seam under the
-## thin LiveDistrict view (mirrors MapProjection / EndGameResolver). Also hosts the navmesh bake
+## WORLD-space geometry, and exposes typed getters. This is the headless-testable seam for the
+## city authoring data (mirrors MapProjection / EndGameResolver). Also hosts the navmesh bake
 ## helper so the outline-minus-obstacles math lives next to the data that feeds it.
 
 const LAYOUT_PATH := "res://data/city_layout.json"
