@@ -46,6 +46,7 @@ func _init() -> void:
 	_test_sidecar_bridge()
 	_test_perception_snapshot()
 	_test_action_commit()
+	_test_coordinate_anchors_consistent()
 	_test_ritual_step_advances_summoning()
 	_test_commit_sets_thought()
 	_test_action_attack()
@@ -556,11 +557,12 @@ func _test_action_commit() -> void:
 	AG.rebuild()
 	var voss: Agent = AG.get_agent("clerk_voss")
 	voss.position = Vector2.ZERO
-	var before: float = voss.position.distance_to(Vector2(420, 360))
+	var site: Vector2 = ActionCommit.SITES["iron_cross_warehouse"]
+	var before: float = voss.position.distance_to(site)
 	var out: Dictionary = ActionCommit.commit(
 		{"actor": "clerk_voss", "verb": "move_to", "args": {"target": "iron_cross_warehouse"}}, voss)
 	_ok(out.has("moved_to"), "move_to reports a new position")
-	_ok(voss.position.distance_to(Vector2(420, 360)) < before, "agent moved toward the site")
+	_ok(voss.position.distance_to(site) < before, "agent moved toward the site")
 	_ok(voss.current_action.get("verb", "") == "move_to", "current_action is recorded")
 	# talk_to records memory, no movement.
 	var pos_before: Vector2 = voss.position
@@ -573,6 +575,15 @@ func _test_action_commit() -> void:
 	# coordinate-string target resolves.
 	ActionCommit.commit({"actor": "clerk_voss", "verb": "move_to", "args": {"target": "100,100"}}, voss)
 	_ok(true, "coordinate target does not error")
+
+func _test_coordinate_anchors_consistent() -> void:
+	print("[coordinate anchors]")
+	var site_world: Vector2 = MapProjection.map_to_world(MapProjection.WAREHOUSE_MAP)
+	_ok(site_world.is_equal_approx(Vector2(1802.5, 1302.0)), "rite site resolves to world (1802.5,1302.0)")
+	_ok((ActionCommit.SITES["iron_cross_warehouse"] as Vector2).is_equal_approx(site_world),
+		"ActionCommit.SITES rite == map_to_world(WAREHOUSE_MAP)")
+	_ok(AmbientSidecar.WAREHOUSE.is_equal_approx(site_world),
+		"AmbientSidecar.WAREHOUSE == map_to_world(WAREHOUSE_MAP)")
 
 func _test_commit_sets_thought() -> void:
 	print("[commit thought]")

@@ -7,11 +7,11 @@
 		"intent": "Complete the warehouse summoning to escape mortality. Plan the ritual steps, direct the acolytes, recruit quietly, and keep the cell hidden from the Nighthawks and the player.",
 		"tint": [0.6, 0.5, 0.7],
 		"schedule": {
-			"morning": [440, 400],
-			"afternoon": [480, 300],
-			"dusk": [440, 340],
-			"night": [400, 360],
-			"late-night": [420, 360]
+			"morning": [1793, 1327],
+			"afternoon": [1830, 1220],
+			"dusk": [1793, 1263],
+			"night": [1757, 1284],
+			"late-night": [1775, 1284]
 		}
 	},
 	"fishwife_dalia": {
@@ -22,10 +22,10 @@
 		"intent": "Move ritual ingredients through the harbor to the warehouse, and run decoy errands that mislead anyone investigating the cell.",
 		"tint": [0.5, 0.7, 0.65],
 		"schedule": {
-			"morning": [680, 250],
-			"afternoon": [500, 260],
-			"dusk": [460, 320],
-			"night": [400, 360]
+			"morning": [2010, 1167],
+			"afternoon": [1848, 1178],
+			"dusk": [1812, 1242],
+			"night": [1757, 1284]
 		}
 	},
 	"lamplighter_orin": {
@@ -36,12 +36,12 @@
 		"intent": "Scout the district while lighting the lamps, reporting movements to Voss. Increasingly doubts what the cell is about to do, and can be turned by someone who reaches him.",
 		"tint": [0.85, 0.7, 0.4],
 		"schedule": {
-			"early-morning": [340, 210],
-			"morning": [220, 300],
-			"afternoon": [540, 300],
-			"dusk": [520, 360],
-			"night": [360, 360],
-			"late-night": [330, 360]
+			"early-morning": [1703, 1125],
+			"morning": [1595, 1220],
+			"afternoon": [1884, 1220],
+			"dusk": [1866, 1284],
+			"night": [1721, 1284],
+			"late-night": [1694, 1284]
 		}
 	},
 	"dockhand_pell": {
@@ -52,10 +52,10 @@
 		"intent": "Get through the workday and back home. Unaware that the cell has marked him as the intended sacrifice for the summoning.",
 		"tint": [0.7, 0.65, 0.55],
 		"schedule": {
-			"morning": [520, 180],
-			"afternoon": [520, 360],
-			"dusk": [500, 380],
-			"night": [360, 300]
+			"morning": [1866, 1093],
+			"afternoon": [1866, 1284],
+			"dusk": [1848, 1306],
+			"night": [1721, 1220]
 		}
 	}
 }

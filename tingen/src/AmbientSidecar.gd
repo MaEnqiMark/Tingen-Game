@@ -13,7 +13,8 @@ extends MockSidecar
 ## the same proposal — so the world is reproducible and the behavior is unit-testable.
 
 ## Mirrors ActionCommit.SITES.iron_cross_warehouse — the descending god's rite pulls the faithful in.
-const WAREHOUSE: Vector2 = Vector2(420, 360)
+## static var (not const) so it can be computed from MapProjection's transform.
+static var WAREHOUSE: Vector2 = MapProjection.map_to_world(MapProjection.WAREHOUSE_MAP)
 const WANDER: float = 28.0   # px of deterministic per-beat scatter around a goal
 
 ## The four-step descent litany, mirroring data/rituals.json summoning_descent. Cycled by beat so

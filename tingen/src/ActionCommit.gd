@@ -6,10 +6,10 @@ extends RefCounted
 ## that belong to later systems (combat, ritual countdown, sabotage economy) are recorded
 ## as memory + outcome here and given their full effects in their own plans.
 
-## Named ritual/world sites in scene coordinates. Inside the iron_cross polygon
-## [320,200, 560,380] from districts.json.
-const SITES: Dictionary = {
-	"iron_cross_warehouse": Vector2(420, 360),
+## Named ritual/world sites in world coordinates, anchored to the canonical map via MapProjection
+## so they stay true to the map. const can't call a static fn, so this is a static var.
+static var SITES: Dictionary = {
+	"iron_cross_warehouse": MapProjection.map_to_world(MapProjection.WAREHOUSE_MAP),
 }
 
 ## How close (px) an agent must stand to the rite site for its ritual work to actually bite.
