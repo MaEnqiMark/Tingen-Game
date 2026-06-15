@@ -37,7 +37,7 @@
 		{ "pos": [515, 372], "label": "Warehouse" },
 		{ "pos": [690, 205], "label": "St. Selena Cathedral" },
 		{ "pos": [835, 150], "label": "Backlund Bridge" },
-		{ "pos": [470, 550], "label": "Night Market" },
-		{ "pos": [800, 545], "label": "The Harbor" }
+		{ "pos": [470, 531], "label": "Night Market" },
+		{ "pos": [755, 545], "label": "The Harbor" }
 	]
 }
