@@ -101,8 +101,8 @@ func _draw_map() -> void:
 			String(d.get("name", d.get("id", "?"))), HORIZONTAL_ALIGNMENT_CENTER, 92, 12)
 		# 3a) A focal dot at each district centroid (named just above by the label).
 		_canvas.draw_circle(center, 3.0, Color(0.95, 0.95, 1.0, 0.85))
-	# 3b) The warehouse rite-site marker, derived from world space so it stays in sync with the dot.
-	var rite: Vector2 = MapProjection.image_to_canvas(size, MapProjection.world_to_map(MapProjection.WAREHOUSE_WORLD))
+	# 3b) The warehouse rite-site marker, in canonical map space (same space as the district dots).
+	var rite: Vector2 = MapProjection.image_to_canvas(size, MapProjection.WAREHOUSE_MAP)
 	_canvas.draw_circle(rite, 4.0, Color(0.95, 0.55, 0.2))
 	_canvas.draw_string(ThemeDB.fallback_font, rite + Vector2(7, 4),
 		"Rite Site", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.97, 0.7, 0.4))

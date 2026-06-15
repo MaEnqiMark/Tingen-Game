@@ -1934,23 +1934,27 @@ func _test_map_projection_canvas_fit() -> void:
 		"canvas_to_image on a zero-size canvas returns a finite point")
 
 func _test_map_projection_world_to_map() -> void:
-	print("[map projection world_to_map]")
+	print("[map projection global transform]")
 	# Constants match the canonical map-image space (tingen_map.png is 1000x706).
 	_ok(MapProjection.MAP_SIZE == Vector2(1000.0, 706.0), "MAP_SIZE is the tingen_map.png pixel size")
-	# The four corners of the streetscape source map exactly onto the Iron Cross dest corners.
-	var src: Rect2 = MapProjection.STREETSCAPE_SOURCE
-	var dst: Rect2 = MapProjection.IRON_CROSS_DEST
-	_ok(MapProjection.world_to_map(src.position).is_equal_approx(dst.position),
-		"source top-left -> dest top-left")
-	_ok(MapProjection.world_to_map(src.position + src.size).is_equal_approx(dst.position + dst.size),
-		"source bottom-right -> dest bottom-right")
-	_ok(MapProjection.world_to_map(src.get_center()).is_equal_approx(dst.get_center()),
-		"source center -> dest center")
-	# The live anchor points both land inside the Iron Cross region.
-	_ok(dst.has_point(MapProjection.world_to_map(Vector2(440.0, 300.0))),
-		"player_start (440,300) lands inside IRON_CROSS_DEST")
-	_ok(dst.has_point(MapProjection.world_to_map(MapProjection.WAREHOUSE_WORLD)),
-		"WAREHOUSE_WORLD lands inside IRON_CROSS_DEST")
+	_ok(MapProjection.CITY_SCALE == 3.5, "CITY_SCALE is 3.5")
+	# Map corners map onto the world rect (0,0)..(3500,2471).
+	_ok(MapProjection.map_to_world(Vector2.ZERO).is_equal_approx(Vector2.ZERO),
+		"map origin -> world origin")
+	_ok(MapProjection.map_to_world(MapProjection.MAP_SIZE).is_equal_approx(Vector2(3500.0, 2471.0)),
+		"map far corner -> world far corner (3500,2471)")
+	# Round-trip identity: world_to_map is the exact inverse of map_to_world.
+	var p := Vector2(1234.0, 567.0)
+	_ok(MapProjection.map_to_world(MapProjection.world_to_map(p)).is_equal_approx(p),
+		"map_to_world(world_to_map(p)) == p")
+	# The Iron Cross map_polygon top-left lands at the documented world rect corner.
+	_ok(MapProjection.map_to_world(Vector2(430.0, 300.0)).is_equal_approx(Vector2(1505.0, 1050.0)),
+		"Iron Cross map (430,300) -> world (1505,1050)")
+	# The rite site anchor: WAREHOUSE_MAP sits inside the Iron Cross map_polygon and transforms cleanly.
+	var ic := Rect2(430.0, 300.0, 170.0, 140.0)  # iron_cross map_polygon bounds
+	_ok(ic.has_point(MapProjection.WAREHOUSE_MAP), "WAREHOUSE_MAP lands inside the Iron Cross region")
+	_ok(MapProjection.map_to_world(MapProjection.WAREHOUSE_MAP).is_equal_approx(Vector2(1802.5, 1302.0)),
+		"WAREHOUSE_MAP -> world (1802.5,1302.0)")
 
 ## The map panel loads the real map texture and the five districts, and toggles like the other
 ## modals. Asserts only layout-independent invariants so it is robust under headless control sizing;
