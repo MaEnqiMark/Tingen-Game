@@ -13,10 +13,14 @@ const NPC_SCENE: PackedScene = preload("res://scenes/NPC.tscn")
 const PLAYER_SCENE: PackedScene = preload("res://scenes/Player.tscn")
 const INTERACTABLE_SCENE: PackedScene = preload("res://scenes/Interactable.tscn")
 const DISTRICTS_PATH: String = "res://data/districts.json"
+const MAP_TEXTURE: Texture2D = preload("res://assets/maps/tingen_map.png")
 
 ## Player spawn: a street just south of the Iron Cross blocks (map (470,360) x3.5). On the walkable
 ## negative space between buildings, a short walk from the warehouse rite site.
 @export var player_start: Vector2 = Vector2(1645, 1260)
+## The map art drawn behind the vector city, scaled to cover (0,0)-(3500,2471). ON by default so
+## geometry can be traced against it; flipped OFF (a later user-triggered step) once faithful.
+@export var show_map_underlay: bool = true
 
 ## The sabotage point at the warehouse door (map (505,372) x3.5): ~35u from the rite site, inside
 ## ActionCommit.RITE_RADIUS so the player can spoil the gathered cache by hand.
@@ -46,8 +50,11 @@ const WAREHOUSE_EDGE: Color = Color(0.520, 0.225, 0.215)
 var _player: Node2D = null
 
 func _ready() -> void:
+	_build_underlay()
 	_build_city()
+	_build_boundary()
 	_spawn_player()
+	_apply_camera_bounds()
 	_spawn_agents()
 	_spawn_rite_sabotage_point()
 
@@ -101,6 +108,53 @@ func _build_city() -> void:
 	for lm in layout.landmarks():
 		_place_label(s, (lm["pos"] as Vector2) + Vector2(-30, -22), String(lm["label"]),
 			Color(0.86, 0.84, 0.92), 13)
+
+## The map art underlay: a Sprite2D covering exactly (0,0)-(3500,2471), behind everything. A
+## tracing aid only — the vectors are the source of truth for collision/nav — so its visibility is
+## a free toggle that changes nothing functional.
+func _build_underlay() -> void:
+	var spr := Sprite2D.new()
+	spr.name = "MapUnderlay"
+	spr.texture = MAP_TEXTURE
+	spr.centered = false
+	spr.position = Vector2.ZERO
+	spr.scale = Vector2(MapProjection.CITY_SCALE, MapProjection.CITY_SCALE)
+	spr.z_index = -100
+	spr.visible = show_map_underlay
+	add_child(spr)
+
+## Four infinite WorldBoundaryShape2D walls at the world rect edges, so the player can't walk off
+## the map. Each normal points inward (toward the playable side); distance = normal . edge-point.
+func _build_boundary() -> void:
+	var w: float = MapProjection.MAP_SIZE.x * MapProjection.CITY_SCALE   # 3500
+	var h: float = MapProjection.MAP_SIZE.y * MapProjection.CITY_SCALE   # 2471
+	_wall(Vector2(1, 0), 0.0)     # left   (x = 0)
+	_wall(Vector2(-1, 0), -w)     # right  (x = 3500)
+	_wall(Vector2(0, 1), 0.0)     # top    (y = 0)
+	_wall(Vector2(0, -1), -h)     # bottom (y = 2471)
+
+func _wall(normal: Vector2, distance: float) -> void:
+	var body := StaticBody2D.new()
+	body.add_to_group("city_boundary")
+	var col := CollisionShape2D.new()
+	var shape := WorldBoundaryShape2D.new()
+	shape.normal = normal
+	shape.distance = distance
+	col.shape = shape
+	body.add_child(col)
+	add_child(body)
+
+## Bound the player's camera to the (0,0)-(3500,2471) city rect so the view never shows the void.
+func _apply_camera_bounds() -> void:
+	if _player == null:
+		return
+	var cam := _player.get_node_or_null("Camera2D") as Camera2D
+	if cam == null:
+		return
+	cam.limit_left = 0
+	cam.limit_top = 0
+	cam.limit_right = int(MapProjection.MAP_SIZE.x * MapProjection.CITY_SCALE)   # 3500
+	cam.limit_bottom = int(MapProjection.MAP_SIZE.y * MapProjection.CITY_SCALE)  # 2471
 
 func _fill(parent: Node2D, poly: PackedVector2Array, color: Color) -> void:
 	var p := Polygon2D.new()
@@ -187,6 +241,33 @@ func has_sabotage_point() -> bool:
 		if c.is_in_group("interactable") and bool(c.get("sabotage_cache")):
 			return true
 	return false
+
+## True when the map underlay sprite is currently shown.
+func underlay_visible() -> bool:
+	var spr := get_node_or_null("MapUnderlay") as Sprite2D
+	return spr != null and spr.visible
+
+## Toggle the tracing underlay on/off (the vectors stay the source of truth either way).
+func set_underlay_visible(v: bool) -> void:
+	var spr := get_node_or_null("MapUnderlay") as Sprite2D
+	if spr != null:
+		spr.visible = v
+
+## True when the player's camera has been limited to the full city rect.
+func has_camera_bounds() -> bool:
+	if _player == null:
+		return false
+	var cam := _player.get_node_or_null("Camera2D") as Camera2D
+	return cam != null and cam.limit_right == int(MapProjection.MAP_SIZE.x * MapProjection.CITY_SCALE) \
+		and cam.limit_bottom == int(MapProjection.MAP_SIZE.y * MapProjection.CITY_SCALE)
+
+## Number of city-edge boundary walls.
+func boundary_wall_count() -> int:
+	var n := 0
+	for c in get_children():
+		if c.is_in_group("city_boundary"):
+			n += 1
+	return n
 
 # --- Cast -------------------------------------------------------------------------------
 func _spawn_player() -> void:

@@ -72,6 +72,7 @@ func _init() -> void:
 	_test_inspect_signal()
 	await _test_character_card_opens()
 	await _test_live_district_wiring()
+	await _test_live_district_underlay_camera_bounds()
 	_test_occult_divination()
 	_test_divination_hints_never_name_site()
 	_test_occult_other_tools()
@@ -1241,6 +1242,25 @@ func _test_live_district_wiring() -> void:
 	_ok(scene.has_warehouse_marker(), "streetscape marks the warehouse (rite site)")
 	_ok(scene.has_method("has_sabotage_point") and scene.has_sabotage_point(),
 		"streetscape places a sabotage interactable at the rite site")
+	scene.queue_free()
+	await process_frame
+
+func _test_live_district_underlay_camera_bounds() -> void:
+	print("[live district underlay/camera/bounds]")
+	root.get_node("/root/Agents").rebuild()
+	var scene = load("res://scenes/LiveDistrict.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	await process_frame
+	# Underlay: a map Sprite2D, visible by default (for tracing), toggleable.
+	_ok(scene.underlay_visible(), "map underlay is ON by default (for tracing fidelity)")
+	scene.set_underlay_visible(false)
+	_ok(not scene.underlay_visible(), "underlay can be toggled off")
+	scene.set_underlay_visible(true)
+	# Camera bounds: the player's Camera2D is limited to the (0,0)-(3500,2471) city rect.
+	_ok(scene.has_camera_bounds(), "player camera is bounded to the city rect")
+	# City-edge boundary: four world-boundary walls keep the player on the map.
+	_ok(scene.boundary_wall_count() == 4, "four city-edge boundary walls exist")
 	scene.queue_free()
 	await process_frame
 
