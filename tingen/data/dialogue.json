@@ -107,5 +107,35 @@
 				]
 			}
 		}
+	},
+	"finch": {
+		"start": "root",
+		"nodes": {
+			"root": {
+				"speaker": "Ledger Finch",
+				"text": "(He looks up sharply, ink-stained fingers going still on a ledger.) Oh — the records desk is closed for cataloguing just now. Mostly. Was there something you needed? Please, be quick about it.",
+				"options": [
+					{ "label": "Anything on Antigonus?", "goto": "antigonus" },
+					{ "label": "What happened to the restricted volume?", "goto": "volume" },
+					{ "label": "(Leave)", "goto": "end" }
+				]
+			},
+			"antigonus": {
+				"speaker": "Ledger Finch",
+				"text": "Antigonus...? (He stiffens.) That name belongs to the restricted collection. I really couldn't say. The catalogue is over there if you must — but the section is sealed. Please don't make trouble for me.",
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"volume": {
+				"speaker": "Ledger Finch",
+				"text": "The restricted volume? It's out — out for rebinding. At the bindery. Routine, entirely routine. (He answers a shade too fast, eyes flicking to the gap on the shelf.) It will be back any day now. Any day.",
+				"effects": [ { "type": "collect", "clue": "finch_cover" } ],
+				"options": [
+					{ "label": "Back", "goto": "root" },
+					{ "label": "Understood.", "goto": "end" }
+				]
+			}
+		}
 	}
 }

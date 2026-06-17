@@ -48,5 +48,45 @@
 		"location": "nighthawk_hq",
 		"topics": ["the_nighthawks", "antigonus_notebook"],
 		"linked_entities": ["nighthawk_captain"]
+	},
+	{
+		"id": "archive_antigonus",
+		"name": "Antigonus in the Catalogue",
+		"description": "The card catalogue confirms Antigonus was real — a long-dead devotee whose key volume has a call number but no book on the shelf.",
+		"type": "occult",
+		"importance": "supporting",
+		"location": "university_archive",
+		"topics": ["antigonus_notebook", "the_university"],
+		"linked_entities": ["antigonus"]
+	},
+	{
+		"id": "restricted_volume_missing",
+		"name": "The Missing Volume",
+		"description": "The restricted shelf has one empty slot, its dust-shadow still fresh. Someone removed Antigonus' volume only recently.",
+		"type": "physical",
+		"importance": "supporting",
+		"location": "university_archive",
+		"topics": ["antigonus_notebook", "the_theft"],
+		"linked_entities": ["ledger_finch"]
+	},
+	{
+		"id": "contamination_chain",
+		"name": "The Chain of Owners",
+		"description": "Abandoned marginalia traces the notebook through Welch and his circle — each reader driven mad, then dead. The list ends at Welch's lodging.",
+		"type": "testimony",
+		"importance": "pivotal",
+		"location": "university_archive",
+		"topics": ["antigonus_notebook", "the_contamination"],
+		"linked_entities": ["welch"]
+	},
+	{
+		"id": "finch_cover",
+		"name": "The Clerk's Excuse",
+		"description": "The records clerk insists the restricted volume is 'out for rebinding' — a shade too quickly. He is covering for its disappearance.",
+		"type": "testimony",
+		"importance": "supporting",
+		"location": "university_archive",
+		"topics": ["the_theft"],
+		"linked_entities": ["ledger_finch"]
 	}
 ]
