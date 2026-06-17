@@ -38,6 +38,7 @@ DevConsole="*res://src/DevConsole.gd"
 PlayerActions="*res://src/PlayerActions.gd"
 PrayerService="*res://src/PrayerService.gd"
 EndGame="*res://src/EndGame.gd"
+StandaloneBoot="*res://src/StandaloneBoot.gd"
 
 [display]
 
