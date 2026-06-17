@@ -2163,11 +2163,11 @@ func _test_player_stamina() -> void:
 
 func _test_map_texture_imported() -> void:
 	print("[map texture]")
-	var tex: Variant = load("res://assets/maps/tingen_map.png")
-	_ok(tex is Texture2D, "tingen_map.png is imported and loads as a Texture2D")
+	var tex: Variant = load("res://assets/maps/map_v3.png")
+	_ok(tex is Texture2D, "map_v3.png is imported and loads as a Texture2D")
 	if tex is Texture2D:
 		_ok((tex as Texture2D).get_size().is_equal_approx(MapProjection.MAP_SIZE),
-			"texture size matches MAP_SIZE (1000x706)")
+			"texture size matches MAP_SIZE (1254x1254)")
 
 func _test_district_map_polygons() -> void:
 	print("[district map_polygons]")
@@ -2194,7 +2194,7 @@ func _test_district_map_polygons() -> void:
 		if not (dd.has("base_risk") and dd.has("risk_pressure")):
 			risk_model_intact = false
 	_ok(all_valid, "every district has an even-length map_polygon of >= 6 numbers (>= 3 vertices)")
-	_ok(all_in_bounds, "every map_polygon vertex sits within [0,1000] x [0,706]")
+	_ok(all_in_bounds, "every map_polygon vertex sits within [0,1254] x [0,1254]")
 	for expected in ["iron_cross", "harbor", "st_selena", "night_market", "uptown"]:
 		_ok(ids.has(expected), "district '%s' is present" % expected)
 	_ok(risk_model_intact, "base_risk / risk_pressure still present on every district (risk model unbroken)")
@@ -2202,16 +2202,18 @@ func _test_district_map_polygons() -> void:
 func _test_map_projection_canvas_fit() -> void:
 	print("[map projection canvas fit]")
 	# A canvas twice as wide as the map (same height): letterboxed left/right at uniform scale 1.
-	var canvas := Vector2(2000.0, 706.0)
-	var scale: float = minf(canvas.x / MapProjection.MAP_SIZE.x, canvas.y / MapProjection.MAP_SIZE.y)
+	# Derived from MAP_SIZE so it stays correct across map swaps (now the square map_v3, 1254x1254).
+	var ms: Vector2 = MapProjection.MAP_SIZE
+	var canvas := Vector2(ms.x * 2.0, ms.y)
+	var scale: float = minf(canvas.x / ms.x, canvas.y / ms.y)
 	_ok(is_equal_approx(scale, 1.0), "uniform scale is the limiting (height) ratio")
 	# Image origin maps to the centering offset, not the canvas origin.
 	var origin: Vector2 = MapProjection.image_to_canvas(canvas, Vector2.ZERO)
-	_ok(origin.is_equal_approx(Vector2(500.0, 0.0)), "image origin maps to the letterbox offset")
+	_ok(origin.is_equal_approx(Vector2(ms.x * 0.5, 0.0)), "image origin maps to the letterbox offset")
 	# The far map corner stays within the canvas and sits at the far letterbox edge.
-	var corner: Vector2 = MapProjection.image_to_canvas(canvas, MapProjection.MAP_SIZE)
+	var corner: Vector2 = MapProjection.image_to_canvas(canvas, ms)
 	_ok(corner.x <= canvas.x + 0.01 and corner.y <= canvas.y + 0.01, "MAP_SIZE corner stays within the canvas")
-	_ok(corner.is_equal_approx(Vector2(1500.0, 706.0)), "MAP_SIZE corner sits at the far letterbox edge")
+	_ok(corner.is_equal_approx(Vector2(ms.x * 1.5, ms.y)), "MAP_SIZE corner sits at the far letterbox edge")
 	# Aspect-preserving: a step in image x and an equal step in image y scale identically.
 	var dx: Vector2 = MapProjection.image_to_canvas(canvas, Vector2(10.0, 0.0)) - origin
 	var dy: Vector2 = MapProjection.image_to_canvas(canvas, Vector2(0.0, 10.0)) - origin
@@ -2227,24 +2229,25 @@ func _test_map_projection_canvas_fit() -> void:
 
 func _test_map_projection_world_to_map() -> void:
 	print("[map projection global transform]")
-	# Constants match the canonical map-image space (tingen_map.png is 1000x706).
-	_ok(MapProjection.MAP_SIZE == Vector2(1000.0, 706.0), "MAP_SIZE is the tingen_map.png pixel size")
+	# Constants match the canonical map-image space (map_v3.png is 1254x1254).
+	_ok(MapProjection.MAP_SIZE == Vector2(1254.0, 1254.0), "MAP_SIZE is the map_v3.png pixel size")
 	_ok(MapProjection.CITY_SCALE == 3.5, "CITY_SCALE is 3.5")
-	# Map corners map onto the world rect (0,0)..(3500,2471).
+	# Map corners map onto the world rect (0,0)..(4389,4389).
 	_ok(MapProjection.map_to_world(Vector2.ZERO).is_equal_approx(Vector2.ZERO),
 		"map origin -> world origin")
-	_ok(MapProjection.map_to_world(MapProjection.MAP_SIZE).is_equal_approx(Vector2(3500.0, 2471.0)),
-		"map far corner -> world far corner (3500,2471)")
+	_ok(MapProjection.map_to_world(MapProjection.MAP_SIZE).is_equal_approx(Vector2(4389.0, 4389.0)),
+		"map far corner -> world far corner (4389,4389)")
 	# Round-trip identity: world_to_map is the exact inverse of map_to_world.
 	var p := Vector2(1234.0, 567.0)
 	_ok(MapProjection.map_to_world(MapProjection.world_to_map(p)).is_equal_approx(p),
 		"map_to_world(world_to_map(p)) == p")
-	# The Iron Cross map_polygon top-left lands at the documented world rect corner.
+	# A sample map point scales by CITY_SCALE.
 	_ok(MapProjection.map_to_world(Vector2(430.0, 300.0)).is_equal_approx(Vector2(1505.0, 1050.0)),
-		"Iron Cross map (430,300) -> world (1505,1050)")
-	# The rite site anchor: WAREHOUSE_MAP sits inside the Iron Cross map_polygon and transforms cleanly.
-	var ic := Rect2(430.0, 300.0, 170.0, 140.0)  # iron_cross map_polygon bounds
-	_ok(ic.has_point(MapProjection.WAREHOUSE_MAP), "WAREHOUSE_MAP lands inside the Iron Cross region")
+		"map (430,300) -> world (1505,1050)")
+	# The rite anchor is deliberately still in the OLD map space (see MapProjection note): it sits in
+	# its legacy Iron Cross region and transforms cleanly, pending the world/rite unification pass.
+	var ic := Rect2(430.0, 300.0, 170.0, 140.0)  # legacy iron_cross map_polygon bounds (old space)
+	_ok(ic.has_point(MapProjection.WAREHOUSE_MAP), "WAREHOUSE_MAP still in its legacy Iron Cross region")
 	_ok(MapProjection.map_to_world(MapProjection.WAREHOUSE_MAP).is_equal_approx(Vector2(1802.5, 1302.0)),
 		"WAREHOUSE_MAP -> world (1802.5,1302.0)")
 
@@ -2258,7 +2261,7 @@ func _test_district_map_panel() -> void:
 	await process_frame
 	_ok(not panel.visible, "map panel hidden by default")
 	_ok(panel.districts.size() == 5, "panel loaded the five districts")
-	_ok(panel.has_map_texture(), "panel loaded the tingen_map.png texture")
+	_ok(panel.has_map_texture(), "panel loaded the city map texture")
 	panel.toggle()
 	await process_frame
 	_ok(panel.visible, "map panel toggles visible")

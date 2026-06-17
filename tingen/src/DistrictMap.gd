@@ -6,7 +6,7 @@ extends Control
 ## `map_polygon` (map-image space) so every overlay lines up with the printed map art.
 
 const DISTRICTS_PATH: String = "res://data/districts.json"
-const MAP_TEXTURE_PATH: String = "res://assets/maps/tingen_map.png"
+const MAP_TEXTURE_PATH: String = "res://assets/maps/map_v3.png"
 const LOW_RISK := Color(0.25, 0.55, 0.35)
 const HIGH_RISK := Color(0.85, 0.25, 0.25)
 

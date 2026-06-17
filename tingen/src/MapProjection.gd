@@ -9,12 +9,15 @@ extends RefCounted
 ## accurate everywhere, not just inside one district. image_to_canvas / canvas_to_image are the
 ## panel's aspect-fit letterbox and are independent of CITY_SCALE.
 
-const MAP_SIZE := Vector2(1000.0, 706.0)
-## World units per map pixel. The map (1000x706) becomes a (0,0)..(3500,2471) world. 3.5 keeps the
-## established district feel: a full-city walk is ~29 s at the player's 120 u/s.
+const MAP_SIZE := Vector2(1254.0, 1254.0)
+## World units per map pixel. The map (1254x1254) becomes a (0,0)..(4389,4389) world. 3.5 keeps the
+## established district feel: a full-city walk is ~37 s at the player's 120 u/s.
 const CITY_SCALE := 3.5
-## The 降临 / rite site in the canonical map-image space (inside the iron_cross map_polygon
-## [430,300,600,440]). Its world position = map_to_world(WAREHOUSE_MAP); its map marker is itself.
+## The 降临 / rite site, in the canonical map-image space. Its world position =
+## map_to_world(WAREHOUSE_MAP); its map marker is itself. NOTE: still anchored to the OLD map
+## space pending the world/rite coordinate-unification pass. On map_v3 the rite marker is not yet
+## re-aligned to the Iron Cross district; the WORLD anchor (and CityBlocks, ActionCommit.SITES) are
+## deliberately left unchanged here so the panel re-skin causes no gameplay ripple.
 const WAREHOUSE_MAP := Vector2(515.0, 372.0)
 
 ## Map-image space -> world space.
