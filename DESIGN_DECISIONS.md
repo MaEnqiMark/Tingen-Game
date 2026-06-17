@@ -1161,3 +1161,39 @@ follows it, but only the Iron Cross region is currently walkable, so that is the
   is a harmless, headless-testable seam, so it was left in place (now unused, not broken);
   leave the interior return doors pointing at the deleted `City.tscn` — would dangle and
   break the back-transition, so they were repointed.
+
+### Implementation notes — restore the warehouse rite site into CityBlocks
+
+- **Made the authored scene agree with the simulation's locked rite world-position instead
+  of moving the anchor: kept `MapProjection.WAREHOUSE_MAP` → `(1802.5, 1302.0)`, removed the
+  one building (`B_r5_c6`) whose collider buried that point, and authored an open maroon
+  `Warehouse` courtyard marker (降临 / rite site) plus a `WarehouseCache` sabotage
+  interactable sitting exactly on it.** When `LiveDistrict` was retired the warehouse stopped
+  being drawn, but the whole simulation still pivots on that one world-point: cultists (教徒)
+  converge on `AmbientSidecar.WAREHOUSE`, the rite only bites the summoning clock within
+  `ActionCommit.RITE_RADIUS` (80 px) of `ActionCommit.SITES.iron_cross_warehouse`, and the
+  player's cache sabotage is staged there — all three derive from
+  `map_to_world(WAREHOUSE_MAP)`. In `CityBlocks.tscn` that exact point happened to fall inside
+  building `B_r5_c6`'s collider, so the player could never physically walk to the rite. The
+  fix keeps the sim untouched (no `MapProjection`/`ActionCommit`/`AmbientSidecar` edit) and
+  makes the *scene* honest: the burying body was deleted, an open `Polygon2D` courtyard
+  (no collider, inserted between `Ground` and `Buildings` so it draws above the ground but
+  below the buildings and actors render on top) with an "Iron Cross Warehouse" label marks
+  the site, and the `sabotage_cache` interactable is placed on the anchor so "spoil the
+  summoning cache" is reachable on foot.
+  *Tests:* extended `_test_city_blocks_scene` with four rite-site guards — a named `Warehouse`
+  marker exists, a `sabotage_cache` interactable exists, it sits within `RITE_RADIUS` of
+  `SITES.iron_cross_warehouse`, and the anchor point is clear of every building collider
+  (`Geometry2D.is_point_in_polygon`, i.e. actually walkable). Suite **529 → 533 passed, 0
+  failed**; the building-body count assertion still holds at 49 (was 50, one removed). A
+  throwaway `Main.tscn` boot smoke ran clean (no errors/warnings).
+  *Alts (rejected):* move `WAREHOUSE_MAP` to a free grid cell — would break
+  `_test_coordinate_anchors_consistent` and silently shift the cultist convergence, the rite
+  gate, and the sabotage stage all at once (the anchor is deliberately a single source of
+  truth, so it stays put); make the warehouse an enter-able interior with a door (like the HQ
+  / Archive rooms) — breaks the street-level sim, which runs cultist convergence and the
+  proximity-gated rite/sabotage in `CityBlocks` world space, not in a sub-scene; leave the
+  point buried and just nudge the sabotage interactable somewhere walkable — the interactable
+  isn't proximity-gated so it would "work," but the rite anchor itself would stay unreachable,
+  so cultists would mass on a spot the player can't contest, which is exactly the dead-feeling
+  bug being fixed.

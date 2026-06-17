@@ -11,6 +11,17 @@
 color = Color(0.12, 0.13, 0.16, 1)
 polygon = PackedVector2Array(0, 0, 2400, 0, 2400, 1700, 0, 1700)
 
+[node name="Warehouse" type="Polygon2D" parent="."]
+position = Vector2(1862.5, 1255.7)
+color = Color(0.235, 0.13, 0.13, 1)
+polygon = PackedVector2Array(-120, -100, 120, -100, 120, 100, -120, 100)
+
+[node name="Name" type="Label" parent="Warehouse"]
+offset_left = -110.0
+offset_top = -96.0
+text = "Iron Cross Warehouse"
+theme_override_font_sizes/font_size = 24
+
 [node name="Buildings" type="Node2D" parent="."]
 
 [node name="B_r0_c0" type="StaticBody2D" parent="Buildings"]
@@ -413,16 +424,6 @@ polygon = PackedVector2Array(-76.8, -62.9, 76.8, -62.9, 76.8, 62.9, -76.8, 62.9)
 [node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Buildings/B_r5_c5"]
 polygon = PackedVector2Array(-76.8, -62.9, 76.8, -62.9, 76.8, 62.9, -76.8, 62.9)
 
-[node name="B_r5_c6" type="StaticBody2D" parent="Buildings"]
-position = Vector2(1862.5, 1255.7)
-
-[node name="Polygon2D" type="Polygon2D" parent="Buildings/B_r5_c6"]
-color = Color(0.36, 0.33, 0.3, 1)
-polygon = PackedVector2Array(-92.8, -71, 92.8, -71, 92.8, 71, -92.8, 71)
-
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Buildings/B_r5_c6"]
-polygon = PackedVector2Array(-92.8, -71, 92.8, -71, 92.8, 71, -92.8, 71)
-
 [node name="B_r5_c7" type="StaticBody2D" parent="Buildings"]
 position = Vector2(2127.5, 1255.7)
 
@@ -571,3 +572,9 @@ position = Vector2(1390, 1060)
 prompt_text = "Enter the University archive"
 tint = Color(0.72, 0.6, 0.42, 1)
 target_scene = "res://scenes/UniversityArchive.tscn"
+
+[node name="WarehouseCache" parent="." instance=ExtResource("interactable")]
+position = Vector2(1802.5, 1302)
+prompt_text = "Spoil the summoning cache"
+tint = Color(0.85, 0.35, 0.3, 1)
+sabotage_cache = true

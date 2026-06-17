@@ -1307,6 +1307,29 @@ func _test_city_blocks_scene() -> void:
 		"a transition door leads to the Nighthawks HQ interior")
 	_ok(door_targets.has("res://scenes/UniversityArchive.tscn"),
 		"a transition door leads to the University archive interior")
+	# The descending-god (降临) rite site, restored into the authored map. The simulation already
+	# anchors the warehouse at ActionCommit.SITES.iron_cross_warehouse (== map_to_world(WAREHOUSE_MAP)
+	# == (1802.5,1302.0)), so the scene must agree with it: (a) show a named Warehouse marker, (b)
+	# place the "spoil the cache" sabotage interactable within rite range of that point, and (c) keep
+	# the point clear of every building collider so the player can actually walk in and reach it.
+	var rite: Vector2 = ActionCommit.SITES["iron_cross_warehouse"]
+	_ok(scene.get_node_or_null("Warehouse") != null, "scene has a Warehouse rite-site marker")
+	var sabotage: Node = null
+	for n in scene.get_children():
+		if n.is_in_group("interactable") and bool(n.get("sabotage_cache")):
+			sabotage = n
+			break
+	_ok(sabotage != null, "scene has a sabotage-the-cache interactable")
+	if sabotage != null:
+		_ok((sabotage as Node2D).position.distance_to(rite) <= ActionCommit.RITE_RADIUS,
+			"the sabotage point sits within rite range of the warehouse")
+	var buried := false
+	if buildings != null:
+		for b in buildings.get_children():
+			var cp: CollisionPolygon2D = b.get_node_or_null("CollisionPolygon2D")
+			if cp != null and Geometry2D.is_point_in_polygon(rite - (b as Node2D).position, cp.polygon):
+				buried = true
+	_ok(not buried, "the rite site is clear of every building collider (reachable)")
 	scene.queue_free()
 	await process_frame
 
