@@ -97,6 +97,8 @@ func _init() -> void:
 	await _test_prayer_panel()
 	await _test_debug_log_panel()
 	await _test_district_map_panel()
+	await _test_toasts()
+	await _test_player_position_sync()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -2047,6 +2049,61 @@ func _test_debug_log_panel() -> void:
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
 	await process_frame
+
+func _test_toasts() -> void:
+	print("[toasts]")
+	var EM: Object = root.get_node("/root/EventManager")
+	var WM: Object = root.get_node("/root/WorldManager")
+	var toasts = load("res://ui/Toasts.tscn").instantiate()
+	root.add_child(toasts)
+	await process_frame
+	_ok(toasts.card_count() == 0, "toast stack starts empty")
+	# Wiring: the toast layer subscribes to the three simulation signals it surfaces.
+	_ok(EM.is_connected("event_fired", Callable(toasts, "_on_event")),
+		"toasts listen to EventManager.event_fired")
+	_ok(WM.is_connected("pressure_threshold_crossed", Callable(toasts, "_on_threshold")),
+		"toasts listen to WorldManager.pressure_threshold_crossed")
+	_ok(WM.is_connected("stage_advanced", Callable(toasts, "_on_stage")),
+		"toasts listen to WorldManager.stage_advanced")
+	# Behavior: each handler turns its signal into exactly one card. Called directly (rather
+	# than emitting the global signals) so no other live listener is disturbed by the test.
+	toasts._on_event({"title": "A scream in the fog", "body": "Night Market.",
+		"effects": [{"type": "notify", "channel": "alert"}]})
+	toasts._on_threshold("panic", 60.0)
+	toasts._on_stage("disturbance", "awakening")
+	await process_frame
+	_ok(toasts.card_count() == 3, "event + threshold + stage each push one toast card")
+	# The stack never shows more than MAX_VISIBLE (4) cards at once.
+	for i in 5:
+		toasts.push("spam %d" % i)
+	await process_frame
+	_ok(toasts.card_count() <= 4, "the stack is capped at MAX_VISIBLE (4)")
+	toasts.queue_free()
+	await process_frame
+
+func _test_player_position_sync() -> void:
+	print("[player position sync]")
+	var ART: Object = root.get_node("/root/AgentRuntime")
+	var saved: Vector2 = ART.player_position
+	_ok(get_nodes_in_group("player").is_empty(), "no stray player nodes leaked from earlier tests")
+	var gc = load("res://src/GameController.gd").new()
+	root.add_child(gc)
+	await process_frame
+	# With no player in the tree, sync leaves the last known position untouched.
+	ART.player_position = Vector2(1, 1)
+	gc.sync_player_position()
+	_ok(ART.player_position == Vector2(1, 1), "sync with no player keeps the last position")
+	# A player in the group: sync pushes its live position into AgentRuntime.
+	var player := Node2D.new()
+	player.add_to_group("player")
+	player.global_position = Vector2(123, 456)
+	root.add_child(player)
+	gc.sync_player_position()
+	_ok(ART.player_position == Vector2(123, 456), "sync pushes the live player position into AgentRuntime")
+	player.queue_free()
+	gc.queue_free()
+	await process_frame
+	ART.player_position = saved
 
 func _test_map_texture_imported() -> void:
 	print("[map texture]")

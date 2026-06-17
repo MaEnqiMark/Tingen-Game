@@ -47,6 +47,10 @@ func push(title: String, body: String = "", channel: String = "system") -> void:
 		oldest.queue_free()
 	_stack.add_child(_make_card(title, body, channel))
 
+## Number of toast cards currently live in the stack. Observability / test helper.
+func card_count() -> int:
+	return _stack.get_child_count()
+
 func _make_card(title: String, body: String, channel: String) -> Control:
 	var accent: Color = CHANNEL_COLOR.get(channel, CHANNEL_COLOR["system"])
 	var panel := PanelContainer.new()

@@ -3,7 +3,7 @@ extends Node2D
 ## performs scene transitions requested via WorldState, and tracks the current scene +
 ## player position so SaveManager can serialize and restore them.
 
-@onready var _world: Node2D = $World
+@onready var _world: Node2D = get_node_or_null("World")
 
 var current_scene_path: String = ""
 
@@ -11,9 +11,22 @@ func _ready() -> void:
 	add_to_group("game_controller")
 	WorldState.transition_requested.connect(_on_transition_requested)
 	# Record the scene that was instanced directly in Main.tscn.
-	var first := _world.get_child(0) if _world.get_child_count() > 0 else null
+	var first := _world.get_child(0) if _world and _world.get_child_count() > 0 else null
 	if first and first.scene_file_path != "":
 		current_scene_path = first.scene_file_path
+
+func _process(_delta: float) -> void:
+	# Keep AgentRuntime pointed at the real player every frame. player_position has no
+	# other live writer, so without this the District map's player dot (and, once the
+	# agent brain is un-deferred, the near-player active set) would sit at a fixed default.
+	sync_player_position()
+
+## Push the live player position into the AgentRuntime autoload. Public and side-effect-only
+## so a headless test can drive it without instancing the whole Main scene.
+func sync_player_position() -> void:
+	var p := get_player()
+	if p:
+		AgentRuntime.player_position = p.global_position
 
 func _on_transition_requested(scene_path: String, lead: String) -> void:
 	if _swap_world(scene_path):
