@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://b1tngnhud00001"]
+[gd_scene load_steps=12 format=3 uid="uid://b1tngnhud00001"]
 
 [ext_resource type="Script" path="res://src/HUD.gd" id="1"]
 [ext_resource type="PackedScene" path="res://ui/InvestigationBoard.tscn" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://ui/RitualPanel.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://ui/PrayerPanel.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://ui/DebugLogPanel.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://ui/InventoryPanel.tscn" id="11"]
 
 [node name="HUD" type="Control"]
 anchor_right = 1.0
@@ -156,4 +157,7 @@ visible = false
 visible = false
 
 [node name="DebugLogPanel" parent="." instance=ExtResource("10")]
+visible = false
+
+[node name="InventoryPanel" parent="." instance=ExtResource("11")]
 visible = false

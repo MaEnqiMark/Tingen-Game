@@ -18,6 +18,7 @@ extends Control
 @onready var _rituals: Control = $RitualPanel
 @onready var _prayer: Control = $PrayerPanel
 @onready var _debug: Control = $DebugLogPanel
+@onready var _inventory: Control = $InventoryPanel
 
 func _ready() -> void:
 	WorldState.thought_requested.connect(_on_thought)
@@ -74,4 +75,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		_debug.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_inventory"):
+		_inventory.toggle()
 		get_viewport().set_input_as_handled()

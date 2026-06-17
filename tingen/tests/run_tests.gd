@@ -96,6 +96,7 @@ func _init() -> void:
 	_test_prayer_parity_with_sidecar()
 	await _test_prayer_panel()
 	await _test_debug_log_panel()
+	await _test_inventory_panel()
 	await _test_district_map_panel()
 	await _test_toasts()
 	await _test_player_position_sync()
@@ -2049,6 +2050,30 @@ func _test_debug_log_panel() -> void:
 	await process_frame
 	_ok(not panel.visible, "debug panel toggles back hidden")
 	panel.queue_free()
+	await process_frame
+
+func _test_inventory_panel() -> void:
+	print("[inventory panel]")
+	var INV: Object = root.get_node("/root/Inventory")
+	INV.clear()
+	var panel = load("res://ui/InventoryPanel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	_ok(not panel.visible, "inventory hidden by default")
+	panel.toggle()
+	await process_frame
+	_ok(panel.visible, "inventory toggles visible")
+	_ok(panel.line_count() == 1, "empty inventory shows a single placeholder line")
+	# Items appear live while the panel is open: one row per held item type.
+	INV.add("candle", 2)
+	INV.add("spirit_pendulum", 1)
+	await process_frame
+	_ok(panel.line_count() == 2, "panel renders one row per held item type")
+	panel.toggle()
+	await process_frame
+	_ok(not panel.visible, "inventory toggles back hidden")
+	panel.queue_free()
+	INV.clear()
 	await process_frame
 
 func _test_toasts() -> void:
