@@ -99,6 +99,7 @@ func _init() -> void:
 	await _test_district_map_panel()
 	await _test_toasts()
 	await _test_player_position_sync()
+	await _test_player_stamina()
 
 	print("\n=== %d passed, %d failed, %d skipped ===" % [_passed, _failed, _skipped])
 	quit(1 if _failed > 0 else 0)
@@ -2104,6 +2105,36 @@ func _test_player_position_sync() -> void:
 	gc.queue_free()
 	await process_frame
 	ART.player_position = saved
+
+func _test_player_stamina() -> void:
+	print("[player stamina]")
+	var p = load("res://scenes/Player.tscn").instantiate()
+	root.add_child(p)
+	await process_frame
+	_ok(is_equal_approx(p.stamina, p.max_stamina), "starts at full stamina")
+	# Sprinting drains; not-sprinting regenerates; both clamp to [0, max].
+	p.step_stamina(1.0, true)
+	_ok(is_equal_approx(p.stamina, p.max_stamina - p.stamina_drain),
+		"sprinting drains one second of stamina")
+	p.stamina = 5.0
+	p.step_stamina(1.0, true)
+	_ok(p.stamina == 0.0, "stamina clamps at 0 (never negative)")
+	p.stamina = 0.0
+	p.step_stamina(1.0, false)
+	_ok(is_equal_approx(p.stamina, p.stamina_regen), "regenerates one second while not sprinting")
+	p.stamina = p.max_stamina - 1.0
+	p.step_stamina(1.0, false)
+	_ok(p.stamina == p.max_stamina, "stamina clamps at max")
+	# Exhaustion latch: empty disarms an active sprint and blocks re-engage until recovered.
+	p.stamina = 0.0
+	p._sprinting = true
+	_ok(p._resolve_sprint(Vector2.RIGHT) == false, "empty stamina disarms an active sprint")
+	_ok(p._exhausted, "draining to empty sets the exhausted latch")
+	p.stamina = p.sprint_recharge_threshold
+	p._resolve_sprint(Vector2.RIGHT)
+	_ok(not p._exhausted, "exhaustion clears once stamina recovers to the threshold")
+	p.queue_free()
+	await process_frame
 
 func _test_map_texture_imported() -> void:
 	print("[map texture]")

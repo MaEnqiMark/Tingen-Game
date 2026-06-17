@@ -8,6 +8,7 @@ extends Control
 @onready var _stability: ProgressBar = $Meters/Stability/Bar
 @onready var _corruption: ProgressBar = $Meters/Corruption/Bar
 @onready var _panic: ProgressBar = $Meters/Panic/Bar
+@onready var _stamina: ProgressBar = $Meters/Stamina/Bar
 @onready var _thought_panel: Panel = $ThoughtPanel
 @onready var _thought: Label = $ThoughtPanel/Margin/Text
 @onready var _thought_timer: Timer = $ThoughtTimer
@@ -33,6 +34,19 @@ func _refresh() -> void:
 	_stability.value = WorldState.stability()
 	_corruption.value = WorldState.corruption
 	_panic.value = WorldState.panic
+
+func _process(_delta: float) -> void:
+	# Stamina lives on the (transient) player, so poll it each frame rather than holding
+	# a connection a scene swap would break. Quiet no-op while no player is in the world.
+	var players := get_tree().get_nodes_in_group("player")
+	if players.is_empty():
+		return
+	var p: Node = players[0]
+	var s: Variant = p.get("stamina")
+	if s == null:
+		return
+	_stamina.max_value = float(p.get("max_stamina"))
+	_stamina.value = float(s)
 
 func _on_lead_changed(text: String) -> void:
 	_lead.text = "Lead: " + text

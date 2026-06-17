@@ -91,6 +91,21 @@ max_value = 100.0
 value = 5.0
 show_percentage = false
 
+[node name="Stamina" type="HBoxContainer" parent="Meters"]
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="Meters/Stamina"]
+custom_minimum_size = Vector2(84, 0)
+text = "Stamina"
+
+[node name="Bar" type="ProgressBar" parent="Meters/Stamina"]
+custom_minimum_size = Vector2(150, 14)
+modulate = Color(0.85, 0.8, 0.45, 1)
+size_flags_horizontal = 3
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
 [node name="ThoughtPanel" type="Panel" parent="."]
 anchor_top = 1.0
 anchor_right = 1.0
