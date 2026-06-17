@@ -31,6 +31,12 @@ var _facing: String = "down"
 var _last_up_tap: float = -1000.0
 var _sprinting: bool = false
 var _exhausted: bool = false
+## Floating stamina bar drawn beside Klein: fades in when a sprint begins, shows the pool
+## draining white -> red, and fades out once stamina is full again.
+const _BAR_SIZE := Vector2(5.0, 26.0)
+const _BAR_CENTER := Vector2(16.0, -34.0)
+const _BAR_FADE := 6.0          # alpha units per second
+var _bar_alpha: float = 0.0
 
 func _ready() -> void:
 	stamina = max_stamina
@@ -40,6 +46,7 @@ func _physics_process(delta: float) -> void:
 	if DialogueManager.active:
 		velocity = Vector2.ZERO
 		step_stamina(delta, false)  # recover while a conversation holds you still
+		_update_stamina_bar(delta, false)
 		return
 	# Double-tap "up" (W) within the window engages sprint, unless exhausted.
 	if Input.is_action_just_pressed("move_up"):
@@ -50,6 +57,7 @@ func _physics_process(delta: float) -> void:
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var sprinting := _resolve_sprint(direction)
 	step_stamina(delta, sprinting)
+	_update_stamina_bar(delta, sprinting)
 	velocity = direction * (speed * sprint_multiplier if sprinting else speed)
 	move_and_slide()
 	_face(direction)
@@ -73,6 +81,26 @@ func step_stamina(delta: float, sprinting: bool) -> void:
 		stamina = maxf(0.0, stamina - stamina_drain * delta)
 	else:
 		stamina = minf(max_stamina, stamina + stamina_regen * delta)
+
+## Fade the floating bar toward shown (alpha 1) while sprinting or recovering, and toward
+## hidden (alpha 0) once the pool is full again, then request a redraw.
+func _update_stamina_bar(delta: float, sprinting: bool) -> void:
+	var want_shown: bool = sprinting or stamina < max_stamina
+	_bar_alpha = move_toward(_bar_alpha, 1.0 if want_shown else 0.0, _BAR_FADE * delta)
+	queue_redraw()
+
+## Draw the small vertical stamina bar beside Klein: a dark track with a bottom-anchored
+## fill that lerps white (full) -> red (empty); the whole thing is modulated by _bar_alpha.
+func _draw() -> void:
+	if _bar_alpha <= 0.001:
+		return
+	var ratio: float = clampf(stamina / max_stamina, 0.0, 1.0)
+	var tl: Vector2 = _BAR_CENTER - _BAR_SIZE * 0.5
+	draw_rect(Rect2(tl - Vector2.ONE, _BAR_SIZE + Vector2(2, 2)), Color(0.05, 0.05, 0.07, 0.7 * _bar_alpha))
+	var fill_h: float = _BAR_SIZE.y * ratio
+	var fill_col: Color = Color(1, 1, 1).lerp(Color(0.9, 0.15, 0.15), 1.0 - ratio)
+	fill_col.a = _bar_alpha
+	draw_rect(Rect2(tl.x, tl.y + (_BAR_SIZE.y - fill_h), _BAR_SIZE.x, fill_h), fill_col)
 
 ## Pick the directional texture from the dominant movement axis; keep the last
 ## facing while idle so the player stays oriented where they stopped.

@@ -97,6 +97,7 @@ func _init() -> void:
 	await _test_prayer_panel()
 	await _test_debug_log_panel()
 	await _test_inventory_panel()
+	await _test_hud_toggle_keys()
 	await _test_district_map_panel()
 	await _test_toasts()
 	await _test_player_position_sync()
@@ -2076,6 +2077,37 @@ func _test_inventory_panel() -> void:
 	INV.clear()
 	await process_frame
 
+func _test_hud_toggle_keys() -> void:
+	print("[hud toggle keys]")
+	var hud = load("res://ui/HUD.tscn").instantiate()
+	root.add_child(hud)
+	await process_frame
+	var map: Node = hud.get_node("DistrictMap")
+	var inv: Node = hud.get_node("InventoryPanel")
+	_ok(not map.visible and not inv.visible, "map + inventory hidden initially")
+	# Push the toggle_map action through the root viewport, exactly as a real M press arrives,
+	# so this exercises the full _unhandled_input path (not just a direct handler call).
+	_send_action("toggle_map")
+	await process_frame
+	_ok(map.visible, "toggle_map (M) opens the District map")
+	_send_action("toggle_map")
+	await process_frame
+	_ok(not map.visible, "toggle_map (M) again closes it")
+	_send_action("toggle_inventory")
+	await process_frame
+	_ok(inv.visible, "toggle_inventory (I) opens the inventory")
+	hud.queue_free()
+	await process_frame
+
+## Push a press+release of an InputMap action through the root viewport, so the HUD panel
+## toggles fire from _unhandled_input exactly as they do for a real key press.
+func _send_action(action: StringName) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventAction.new()
+		ev.action = action
+		ev.pressed = pressed
+		root.push_input(ev)
+
 func _test_toasts() -> void:
 	print("[toasts]")
 	var EM: Object = root.get_node("/root/EventManager")
@@ -2158,6 +2190,14 @@ func _test_player_stamina() -> void:
 	p.stamina = p.sprint_recharge_threshold
 	p._resolve_sprint(Vector2.RIGHT)
 	_ok(not p._exhausted, "exhaustion clears once stamina recovers to the threshold")
+	# Floating stamina bar: fades in while recovering, fades out once the pool is full.
+	p.stamina = 50.0
+	p._bar_alpha = 0.0
+	p._update_stamina_bar(1.0, false)
+	_ok(p._bar_alpha > 0.0, "stamina bar fades in while recovering")
+	p.stamina = p.max_stamina
+	p._update_stamina_bar(10.0, false)
+	_ok(p._bar_alpha == 0.0, "stamina bar fades out once stamina is full")
 	p.queue_free()
 	await process_frame
 
