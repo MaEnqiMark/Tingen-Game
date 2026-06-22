@@ -21,6 +21,7 @@ Usage:
 
 Cost: gpt-image-1 high ~= $0.25 / image.
 """
+
 from __future__ import annotations
 
 import sys
@@ -48,21 +49,22 @@ BARE_PROMPT = (
     "no furniture, no rug, no objects, no people, no text, no border"
 )
 
-# Blood pass (Mark): take the approved room.png and add the crime scene IN PLACE at high
-# fidelity — a floor puddle by the desk/chair plus stains on the writing desk and chair —
-# while keeping every other pixel (furniture, layout, perspective, lighting) identical.
+# Blood pass (Mark, v2 "less blood"): take the approved room.png and add ONE small,
+# contained floor bloodstain in place at high fidelity — NO desk smears, NO soaked chair,
+# NO spatter — while keeping every other pixel (furniture, layout, perspective) identical.
 BLOOD_PROMPT = (
     "Show this EXACT same room, completely identical to the reference image in every "
     "detail: the same carved-wood bed, the writing desk and wooden chair by the window, "
     "the bookshelf, wardrobe, dresser, nightstands and oil lamps, the patterned rug, the "
     "wood-plank floor, the walls, window and curtains, all in the same positions, with the "
     "exact same overhead perspective, tilt and warm amber gaslight lighting. Change NOTHING "
-    "except adding a grisly crime scene: a dark crimson blood puddle pooled on the wood "
-    "floor beside the writing desk and the chair, dark red blood smears and spatter across "
-    "the top of the writing desk, and blood soaked into the seat and slatted back of the "
-    "wooden chair. The blood is fresh, dark and glistening, painted in the same warm "
-    "painterly style as the room. Everything else stays exactly as in the reference image. "
-    "No body, no people, no text, no border"
+    "except adding ONE small, contained pool of dark crimson blood on the bare wood floor "
+    "beside the writing desk and chair — a single modest bloodstain about the size of a "
+    "dinner plate, with a soft irregular edge. Keep it SMALL and restrained. There is NO "
+    "other blood anywhere: none on the desk, none on the chair, none on the rug, the walls "
+    "or any furniture, no smears, no spatter, no drips, no handprints. The single bloodstain "
+    "is painted in the same warm painterly style as the room. Everything else stays exactly "
+    "as in the reference image. No body, no people, no text, no border"
 )
 
 # Step 1: feed the pipeline's own background/topdown machinery (lead/tail + BG_TOPDOWN,
@@ -70,11 +72,13 @@ BLOOD_PROMPT = (
 ROOM_SPEC = {
     "treatment": "topdown",
     "ref": "kleinroom",
-    "prompt": ("Klein Moretti's warm cozy middle-class Victorian bedroom, an ornate "
-               "carved-wood bed with a quilt set against the wall, a writing desk with a "
-               "chair beside the window, a tall bookshelf, a wardrobe and a dresser, a "
-               "patterned rug centered on a warm wood-plank floor, a bedside table with a "
-               "lit oil lamp, warm amber gaslight, lived-in and tidy"),
+    "prompt": (
+        "Klein Moretti's warm cozy middle-class Victorian bedroom, an ornate "
+        "carved-wood bed with a quilt set against the wall, a writing desk with a "
+        "chair beside the window, a tall bookshelf, a wardrobe and a dresser, a "
+        "patterned rug centered on a warm wood-plank floor, a bedside table with a "
+        "lit oil lamp, warm amber gaslight, lived-in and tidy"
+    ),
 }
 
 # Step 2: strip the generated room down to just its floor.  Conditioned on room.png.
@@ -124,7 +128,9 @@ def step1_room() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     ref_paths, hi = g.resolve_refs("backgrounds", "klein_room_topdown", ROOM_SPEC)
     prompt = g.build_prompt("backgrounds", "klein_room_topdown", ROOM_SPEC, True)
-    print(f"  STEP 1 room  refs={[p.name for p in ref_paths]} fid={'high' if hi else 'low'}")
+    print(
+        f"  STEP 1 room  refs={[p.name for p in ref_paths]} fid={'high' if hi else 'low'}"
+    )
     print(f"  prompt: {prompt}")
     img = g.generate(prompt, "1536x1024", "opaque", "high", ref_paths, hi)
     if not img:
@@ -164,7 +170,8 @@ def step2b_bare() -> None:
 
 def step_blood() -> None:
     """Add the crime-scene blood to room.png in place (high fidelity), keeping the rest
-    of the room pixel-identical.  Output room_blood.png becomes the IntroRoom backdrop."""
+    of the room pixel-identical.  Output room_blood.png becomes the IntroRoom backdrop.
+    """
     _ensure_key()
     if not ROOM.exists():
         sys.exit("  need room.png first (run step 1)")
@@ -203,4 +210,6 @@ if __name__ == "__main__":
     elif arg in ("3", "items"):
         step3_items()
     else:
-        sys.exit("usage: klein_room_pipeline.py [1|room | 2|floor | 2b|bare | blood | 3|items]")
+        sys.exit(
+            "usage: klein_room_pipeline.py [1|room | 2|floor | 2b|bare | blood | 3|items]"
+        )
