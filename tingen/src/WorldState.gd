@@ -44,6 +44,18 @@ func set_lead(text: String) -> void:
 	current_lead = text
 	lead_changed.emit(text)
 
+## Route a scene transition so doors/stairs work from anywhere. When a GameController is
+## mounted (the game is running from Main) emit transition_requested, so it swaps only the
+## World subtree and the persistent HUD survives. Otherwise (a single scene run on its own,
+## e.g. F6 in the editor) fall back to a full scene change so the transition still happens.
+func request_transition(scene_path: String, lead: String = "") -> void:
+	if scene_path == "":
+		return
+	if get_tree().get_first_node_in_group("game_controller") != null:
+		transition_requested.emit(scene_path, lead)
+	else:
+		get_tree().change_scene_to_file(scene_path)
+
 ## Nudge a pressure variable and notify listeners. Clamped to 0..100.
 func adjust(var_name: StringName, delta: float) -> void:
 	if not (var_name in PRESSURE_VARS):

@@ -50,8 +50,8 @@ func _init() -> void:
 	var door: Node = room.get_node_or_null("Door")
 	_ok(door != null and door.get("icon") == null,
 		"Door is an invisible hotspot (no icon)")
-	_ok(door != null and door.get("target_scene") == "res://scenes/CityBlocks.tscn",
-		"Door -> CityBlocks.tscn")
+	_ok(door != null and door.get("target_scene") == "res://scenes/City.tscn",
+		"Door -> City.tscn")
 
 	print("\n=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)

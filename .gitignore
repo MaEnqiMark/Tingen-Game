@@ -13,7 +13,11 @@ __pycache__/
 # Generated asset output (large; regenerate via asset-gen scripts)
 asset-gen/out/
 asset-gen/out_image2/
+asset-gen/out_neil_lost/
 asset-gen/archive/
+
+# Large raw media (keep out of git; not needed to build the game)
+video assets/
 
 # Godot save data (runtime, per-user)
 # (engine .godot/ is ignored by tingen/.gitignore)

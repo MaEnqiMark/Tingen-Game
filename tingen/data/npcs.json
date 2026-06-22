@@ -1,4 +1,12 @@
 {
+	"old_neil": {
+		"name": "Old Neil",
+		"dialogue_id": "old_neil",
+		"faction": "civilian",
+		"role": "alchemist",
+		"intent": "Bring his dead fiancée Celeste back through the forbidden Alchemical Life ritual, before grief and the Hidden Sage's whispers finish hollowing him out.",
+		"tint": [0.62, 0.56, 0.66]
+	},
 	"clerk_voss": {
 		"name": "Clerk Voss",
 		"dialogue_id": "",

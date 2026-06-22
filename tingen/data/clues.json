@@ -1,5 +1,45 @@
 [
 	{
+		"id": "celeste_grief",
+		"name": "A Shrine to Celeste",
+		"description": "Every surface honours a woman named Celeste — her portrait above the piano, kept free of dust. Old Neil never stopped mourning her.",
+		"type": "testimony",
+		"importance": "supporting",
+		"location": "neil_home",
+		"topics": ["old_neil", "the_resurrection"],
+		"linked_entities": ["old_neil", "celeste"]
+	},
+	{
+		"id": "stored_blood",
+		"name": "Vials of His Own Blood",
+		"description": "Racks of small, carefully dated vials of dark red. Old Neil bled himself in measured amounts over years — unwilling to spill anyone else's.",
+		"type": "physical",
+		"importance": "supporting",
+		"location": "neil_home",
+		"topics": ["old_neil", "the_resurrection"],
+		"linked_entities": ["old_neil"]
+	},
+	{
+		"id": "alchemical_life_ritual",
+		"name": "The Alchemical Life Diagram",
+		"description": "A forbidden 'Alchemical Life' diagram, copied from something that names itself the Hidden Sage — a method to make the dead live again, paid for in blood.",
+		"type": "occult",
+		"importance": "pivotal",
+		"location": "neil_home",
+		"topics": ["old_neil", "the_resurrection"],
+		"linked_entities": ["old_neil"]
+	},
+	{
+		"id": "neils_obsession",
+		"name": "Twenty Years of Letters",
+		"description": "Two decades of letters to Celeste, each recording another failed attempt to bring her back. The hope in them has curdled into something past reason.",
+		"type": "testimony",
+		"importance": "supporting",
+		"location": "neil_home",
+		"topics": ["old_neil", "the_resurrection"],
+		"linked_entities": ["old_neil", "celeste"]
+	},
+	{
 		"id": "antigonus_notebook",
 		"name": "Antigonus' Notebook",
 		"description": "A leather notebook whose symbols seem to crawl when unobserved. Plainly a corrupting Beyonder artifact.",

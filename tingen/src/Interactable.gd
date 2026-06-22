@@ -24,6 +24,12 @@ extends Area2D
 @export var clue_id: String = ""
 ## NPC dialogue tree to open (must match a key in data/dialogue.json).
 @export var dialogue_id: String = ""
+## When set, LEFT-CLICKING this object opens the matching Agent's inspect card
+## (WorldState.inspect_requested -> CharacterCard) — surfaces the agent's goal + live thought.
+@export var agent_id: String = ""
+## When true, interacting (E) toggles the host room's RoomState (normal <-> 失控), via the
+## node in group "room_state". Used by the in-room ritual trigger in Old Neil's home.
+@export var room_state_toggle: bool = false
 
 @onready var _prompt: Label = $Prompt
 @onready var _sprite: Sprite2D = $Sprite2D
@@ -45,6 +51,9 @@ func _ready() -> void:
 	_prompt.visible = false
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
+	if agent_id != "":
+		input_pickable = true
+		input_event.connect(_on_input_event)
 
 func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("player"):
@@ -56,6 +65,11 @@ func _on_body_exited(body: Node) -> void:
 		_player_near = false
 		_prompt.visible = false
 
+## Left-click while `agent_id` is set: open that agent's inspect card (its goal + thought).
+func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		WorldState.inspect_requested.emit(agent_id)
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not _player_near:
 		return
@@ -64,6 +78,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _use() -> void:
+	if room_state_toggle:
+		var rs: Node = get_tree().get_first_node_in_group("room_state")
+		if rs and rs.has_method("toggle"):
+			rs.toggle()
+		return
 	if sabotage_cache:
 		_sabotage_rite_cache()
 		return
@@ -71,7 +90,7 @@ func _use() -> void:
 		DialogueManager.start(dialogue_id)
 		return
 	if target_scene != "":
-		WorldState.transition_requested.emit(target_scene, lead_on_use)
+		SceneFade.go(target_scene, lead_on_use)
 		return
 	if clue_id != "":
 		ClueDB.collect(clue_id)

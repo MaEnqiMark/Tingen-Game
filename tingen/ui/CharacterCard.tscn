@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b1tngncard0001"]
+[gd_scene format=3 uid="uid://cujeshhyvyvnk"]
 
 [ext_resource type="Script" path="res://src/CharacterCard.gd" id="1"]
 

@@ -1,4 +1,33 @@
 {
+	"old_neil": {
+		"start": "root",
+		"nodes": {
+			"root": {
+				"speaker": "Old Neil",
+				"text": "Forgive the dust, friend. I keep to myself these days. Was there something you needed?",
+				"options": [
+					{ "label": "Who is the woman in the portrait?", "goto": "celeste" },
+					{ "label": "What are you working on?", "goto": "work" },
+					{ "label": "(Leave him to his grief)", "goto": "end" }
+				]
+			},
+			"celeste": {
+				"speaker": "Old Neil",
+				"text": "Celeste. My betrothed. A fever took her, a long time ago now. They tell me to let her rest — they do not understand how close I am.",
+				"options": [
+					{ "label": "Close to what?", "goto": "work" },
+					{ "label": "Back", "goto": "root" }
+				]
+			},
+			"work": {
+				"speaker": "Old Neil",
+				"text": "An old man's hobbies. Glass and salts and patience. Nothing to trouble a guest with. Only — mind your step. The chalk is still wet.",
+				"options": [
+					{ "label": "Back", "goto": "root" }
+				]
+			}
+		}
+	},
 	"nighthawk": {
 		"start": "root",
 		"nodes": {

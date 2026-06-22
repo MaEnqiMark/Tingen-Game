@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://b1tngnprayer01"]
+[gd_scene format=3 uid="uid://cujesuyiidnnk"]
 
 [ext_resource type="Script" path="res://src/PrayerPanel.gd" id="1"]
 
