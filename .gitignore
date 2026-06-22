@@ -15,6 +15,7 @@ asset-gen/out/
 asset-gen/out_image2/
 asset-gen/out_neil_lost/
 asset-gen/archive/
+asset-gen/_*.png
 
 # Large raw media (keep out of git; not needed to build the game)
 video assets/
